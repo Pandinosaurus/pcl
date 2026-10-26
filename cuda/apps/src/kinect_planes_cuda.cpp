@@ -49,6 +49,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/pcl_macros.h>
+#include <pcl/common/pcl_filesystem.h>
 #include <pcl/io/openni_grabber.h>
 #include <pcl/io/pcd_grabber.h>
 #include <pcl/visualization/cloud_viewer.h>
@@ -60,8 +61,6 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-
-#include <boost/filesystem.hpp>
 
 #include <functional>
 #include <iostream>
@@ -183,7 +182,7 @@ class MultiRansac
             typename Storage<int>::type region_mask;
             markInliers<Storage> (data, region_mask, planes);
             thrust::host_vector<int> regions_host;
-            std::copy (regions_host.begin (), regions_host.end(), std::ostream_iterator<int>(std::cerr, " "));
+            std::copy (regions_host.cbegin (), regions_host.cend(), std::ostream_iterator<int>(std::cerr, " "));
             {
               ScopeTimeCPU t ("retrieving inliers");
               planes = sac.getAllInliers ();
@@ -273,7 +272,7 @@ class MultiRansac
       //bool repeat = false;
 
       //std::string path = "./pcl_logo.pcd";
-      //if (path.empty() || !boost::filesystem::exists (path))
+      //if (path.empty() || !pcl_fs::exists (path))
       //{
       //  std::cerr << "did not find file" << std::endl;
       //}

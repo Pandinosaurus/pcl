@@ -40,9 +40,7 @@
 
 #pragma once
 
-#include <pcl/kdtree/kdtree.h>
 #include <pcl/registration/transformation_validation.h>
-#include <pcl/search/kdtree.h>
 #include <pcl/memory.h>
 #include <pcl/pcl_macros.h>
 #include <pcl/point_representation.h>
@@ -81,10 +79,11 @@ public:
   using ConstPtr =
       shared_ptr<const TransformationValidation<PointSource, PointTarget, Scalar>>;
 
-  using KdTree = pcl::search::KdTree<PointTarget>;
+  using KdTree = pcl::search::Search<PointTarget>;
   using KdTreePtr = typename KdTree::Ptr;
 
-  using PointRepresentationConstPtr = typename KdTree::PointRepresentationConstPtr;
+  using PointRepresentationConstPtr =
+      typename PointRepresentation<PointTarget>::ConstPtr;
 
   using PointCloudSourceConstPtr =
       typename TransformationValidation<PointSource,
@@ -100,8 +99,6 @@ public:
   TransformationValidationEuclidean()
   : max_range_(std::numeric_limits<double>::max())
   , threshold_(std::numeric_limits<double>::quiet_NaN())
-  , tree_(new pcl::search::KdTree<PointTarget>)
-  , force_no_recompute_(false)
   {}
 
   virtual ~TransformationValidationEuclidean() = default;
@@ -229,7 +226,7 @@ protected:
 
   /** \brief A flag which, if set, means the tree operating on the target cloud
    * will never be recomputed*/
-  bool force_no_recompute_;
+  bool force_no_recompute_{false};
 
   /** \brief Internal point representation uses only 3D coordinates for L2 */
   class MyPointRepresentation : public pcl::PointRepresentation<PointTarget> {
@@ -247,10 +244,10 @@ protected:
     }
 
     /** \brief Empty destructor */
-    virtual ~MyPointRepresentation() = default;
+    ~MyPointRepresentation() override = default;
 
-    virtual void
-    copyToFloatArray(const PointTarget& p, float* out) const
+    void
+    copyToFloatArray(const PointTarget& p, float* out) const override
     {
       out[0] = p.x;
       out[1] = p.y;

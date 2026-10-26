@@ -91,9 +91,6 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
 
   // 2D coordinates of points
   const Eigen::Vector2f uvn_nn_qp_zero = Eigen::Vector2f::Zero();
-  Eigen::Vector2f uvn_current;
-  Eigen::Vector2f uvn_prev;
-  Eigen::Vector2f uvn_next;
 
   // initializing fields
   already_connected_ = false; // see declaration for comments :P
@@ -134,7 +131,7 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
   }
 
   // Initializing
-  int is_free=0, nr_parts=0, increase_nnn4fn=0, increase_nnn4s=0, increase_dist=0, nr_touched = 0;
+  int is_free=0, nr_parts=0, increase_nnn4fn=0, increase_nnn4s=0, increase_dist=0;
   angles_.resize(nnn_);
   std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f> > uvn_nn (nnn_);
   Eigen::Vector2f uvn_s;
@@ -667,7 +664,7 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
                 }
                 if (inside_CB && !outside_CB)
                   need_invert = true;
-                else if (!(!inside_CB && outside_CB))
+                else if (inside_CB || !outside_CB)
                 {
                   if ((angles_[end].angle - angles_[start].angle) < M_PI)
                     need_invert = true;
@@ -785,10 +782,10 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
       // Set the state of the point
       state_[R_] = is_boundary ? BOUNDARY : COMPLETED;
 
-      std::vector<int>::iterator first_gap_after = angleIdx.end ();
-      std::vector<int>::iterator last_gap_before = angleIdx.begin ();
+      auto first_gap_after = angleIdx.end ();
+      auto last_gap_before = angleIdx.begin ();
       int nr_gaps = 0;
-      for (std::vector<int>::iterator it = angleIdx.begin (); it != angleIdx.end () - 1; ++it)
+      for (auto it = angleIdx.begin (); it != angleIdx.end () - 1; ++it)
       {
         if (gaps[*it])
         {
@@ -812,7 +809,7 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
         Eigen::Vector2f S1;
         Eigen::Vector2f S2;
         std::vector<int> to_erase;
-        for (std::vector<int>::iterator it = angleIdx.begin()+1; it != angleIdx.end()-1; ++it)
+        for (auto it = angleIdx.begin()+1; it != angleIdx.end()-1; ++it)
         {
           if (gaps[*(it-1)])
             angle_so_far = 0;
@@ -850,7 +847,7 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
                 else
                   break;
               bool can_delete = true;
-              for (std::vector<int>::iterator curr_it = prev_it+1; curr_it != it+1; ++curr_it)
+              for (auto curr_it = prev_it+1; curr_it != it+1; ++curr_it)
               {
                 tmp_ = coords_[angles_[*curr_it].index] - proj_qp_;
                 X[0] = tmp_.dot(u_);
@@ -880,7 +877,7 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
         }
         for (const auto &idx : to_erase)
         {
-          for (std::vector<int>::iterator iter = angleIdx.begin(); iter != angleIdx.end(); ++iter)
+          for (auto iter = angleIdx.begin(); iter != angleIdx.end(); ++iter)
             if (idx == *iter)
             {
               angleIdx.erase(iter);
@@ -893,7 +890,7 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
       changed_1st_fn_ = false;
       changed_2nd_fn_ = false;
       new2boundary_ = NONE;
-      for (std::vector<int>::iterator it = angleIdx.begin()+1; it != angleIdx.end()-1; ++it)
+      for (auto it = angleIdx.begin()+1; it != angleIdx.end()-1; ++it)
       {
         current_index_ = angles_[*it].index;
 
@@ -909,10 +906,6 @@ pcl::GreedyProjectionTriangulation<PointInT>::reconstructPolygons (std::vector<p
           prev_is_sfn_ = (sfn_[current_index_] == angles_[*(it-1)].index) && (!gaps[*(it-1)]);
           next_is_ffn_ = (ffn_[current_index_] == angles_[*(it+1)].index) && (!gaps[*it]);
           next_is_sfn_ = (sfn_[current_index_] == angles_[*(it+1)].index) && (!gaps[*it]);
-          if (!prev_is_ffn_ && !next_is_sfn_ && !prev_is_sfn_ && !next_is_ffn_)
-          {
-            nr_touched++;
-          }
         }
                                    
         if (gaps[*it])

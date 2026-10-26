@@ -131,12 +131,7 @@ PyramidFeatureHistogram<PointFeature>::comparePyramidFeatureHistograms(
 
 template <typename PointFeature>
 PyramidFeatureHistogram<PointFeature>::PyramidFeatureHistogram()
-: nr_dimensions(0)
-, nr_levels(0)
-, nr_features(0)
-, feature_representation_(new DefaultPointRepresentation<PointFeature>)
-, is_computed_(false)
-, hist_levels()
+: feature_representation_(new DefaultPointRepresentation<PointFeature>), hist_levels()
 {}
 
 template <typename PointFeature>
@@ -145,10 +140,9 @@ PyramidFeatureHistogram<
     PointFeature>::PyramidFeatureHistogramLevel::initializeHistogramLevel()
 {
   std::size_t total_vector_size = 1;
-  for (std::vector<std::size_t>::iterator dim_it = bins_per_dimension.begin();
-       dim_it != bins_per_dimension.end();
-       ++dim_it)
-    total_vector_size *= *dim_it;
+  for (const auto& bin : bins_per_dimension) {
+    total_vector_size *= bin;
+  }
 
   hist.resize(total_vector_size, 0);
 }
@@ -187,11 +181,8 @@ PyramidFeatureHistogram<PointFeature>::initializeHistogram()
   nr_dimensions = dimension_range_target_.size();
   nr_features = input_->size();
   float D = 0.0f;
-  for (std::vector<std::pair<float, float>>::iterator range_it =
-           dimension_range_target_.begin();
-       range_it != dimension_range_target_.end();
-       ++range_it) {
-    float aux = range_it->first - range_it->second;
+  for (const auto& dim : dimension_range_target_) {
+    float aux = dim.first - dim.second;
     D += aux * aux;
   }
   D = std::sqrt(D);
@@ -308,8 +299,8 @@ PyramidFeatureHistogram<PointFeature>::compute()
   if (!initializeHistogram())
     return;
 
+  std::vector<float> feature_vector; // put here to reuse memory
   for (const auto& point : *input_) {
-    std::vector<float> feature_vector;
     // NaN is converted to very high number that gives out of bound exception.
     if (!pcl::isFinite(point))
       continue;

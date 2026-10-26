@@ -36,8 +36,9 @@
 #include "vtkRenderingUIModule.h" // For export macro
 #include <X11/Xlib.h>             // Needed for X types in the public interface
 
-namespace pcl {
 class vtkCallbackCommand;
+
+namespace pcl {
 class vtkXRenderWindowInteractorInternals;
 
 class VTKRENDERINGUI_EXPORT vtkXRenderWindowInteractor : public vtkRenderWindowInteractor
@@ -148,7 +149,7 @@ protected:
   void StartEventLoop() override;
 
   /**
-   * Deallocate X ressource that may have been allocated
+   * Deallocate X resource that may have been allocated
    * Also calls finalize on the render window if available
    */
   void Finalize();

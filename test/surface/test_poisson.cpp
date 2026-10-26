@@ -43,6 +43,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/io/vtk_io.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/search/kdtree.h>
 #include <pcl/surface/poisson.h>
 #include <pcl/common/common.h>
 
@@ -75,8 +76,8 @@ TEST (PCL, Poisson)
 
   ASSERT_EQ (mesh.polygons.size (), 4828);
   // All polygons should be triangles
-  for (std::size_t i = 0; i < mesh.polygons.size (); ++i)
-    EXPECT_EQ (mesh.polygons[i].vertices.size (), 3);
+  for (const auto & polygon : mesh.polygons)
+    EXPECT_EQ (polygon.vertices.size (), 3);
 
   EXPECT_EQ (mesh.polygons[10].vertices[0], 197);
   EXPECT_EQ (mesh.polygons[10].vertices[1], 198);

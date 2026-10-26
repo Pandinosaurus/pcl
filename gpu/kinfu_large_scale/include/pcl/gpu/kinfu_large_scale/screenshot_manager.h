@@ -48,11 +48,10 @@
 #include <pcl/gpu/containers/device_array.h>
 #include <pcl/gpu/containers/kernel_containers.h>
 #include <pcl/gpu/kinfu_large_scale/pixel_rgb.h> 
-#include <boost/filesystem.hpp> 
-//#include <boost/graph/buffer_concepts.hpp>
 
 #include <pcl/io/png_io.h>
 
+#include <pcl/common/pcl_filesystem.h>
 #include <pcl/console/print.h>
 
 
@@ -72,9 +71,6 @@ namespace pcl
           /** Constructor */
           ScreenshotManager();
 
-          /** Destructor */
-          ~ScreenshotManager(){}
-          
           /** \brief Sets Depth camera intrinsics
             * \param[in] focal focal length x 
             * \param height

@@ -37,8 +37,13 @@
  */
 
 #include <pcl/registration/gicp6d.h>
-#include <pcl/memory.h>                 // for pcl::make_shared
+#include <pcl/search/kdtree_nanoflann.h>
+#include <pcl/memory.h> // for pcl::make_shared
+#include <pcl/pcl_config.h>
 #include <pcl/point_types_conversion.h> // for PointXYZRGBtoXYZLAB
+#if PCL_HAS_FLANN
+#include <pcl/search/kdtree.h>
+#endif
 
 namespace pcl {
 
@@ -80,9 +85,24 @@ GeneralizedIterativeClosestPoint6D::setInputTarget(
   }
 
   // ...and build 6d-tree
-  target_tree_lab_.setInputCloud(target_lab_);
-  target_tree_lab_.setPointRepresentation(
-      pcl::make_shared<MyPointRepresentation>(point_rep_));
+#if PCL_HAS_NANOFLANN
+  // 6 search dimensions for MyPointRepresentation; max. 10 points per leaf is a good
+  // choice for one-nearest-neighbor search
+  auto tree =
+      pcl::make_shared<pcl::search::KdTreeNanoflann<pcl::PointXYZLAB, 6>>(false, 10);
+  tree->setPointRepresentation(pcl::make_shared<MyPointRepresentation>(point_rep_));
+  tree->setInputCloud(target_lab_);
+  target_tree_lab_ = tree;
+#else
+#if PCL_HAS_FLANN
+  auto tree = pcl::make_shared<pcl::search::KdTree<pcl::PointXYZLAB>>(false);
+  tree->setPointRepresentation(pcl::make_shared<MyPointRepresentation>(point_rep_));
+  tree->setInputCloud(target_lab_);
+  target_tree_lab_ = tree;
+#else
+#error "GeneralizedIterativeClosestPoint6D needs nanoflann or FLANN!"
+#endif
+#endif
 }
 
 bool
@@ -90,7 +110,7 @@ GeneralizedIterativeClosestPoint6D::searchForNeighbors(const PointXYZLAB& query,
                                                        pcl::Indices& index,
                                                        std::vector<float>& distance)
 {
-  int k = target_tree_lab_.nearestKSearch(query, 1, index, distance);
+  int k = target_tree_lab_->nearestKSearch(query, 1, index, distance);
 
   // check if neighbor was found
   return (k != 0);
@@ -141,7 +161,8 @@ GeneralizedIterativeClosestPoint6D::computeTransformation(PointCloudSource& outp
     for (std::size_t i = 0; i < 4; i++)
       for (std::size_t j = 0; j < 4; j++)
         for (std::size_t k = 0; k < 4; k++)
-          transform_R(i, j) += double(transformation_(i, k)) * double(guess(k, j));
+          transform_R(i, j) += static_cast<double>(transformation_(i, k)) *
+                               static_cast<double>(guess(k, j));
 
     Eigen::Matrix3d R = transform_R.topLeftCorner<3, 3>();
 
@@ -224,12 +245,8 @@ GeneralizedIterativeClosestPoint6D::computeTransformation(PointCloudSource& outp
       PCL_DEBUG("[pcl::%s::computeTransformation] Convergence failed\n",
                 getClassName().c_str());
   }
-  // for some reason the static equivalent method raises an error
-  // final_transformation_.block<3,3> (0,0) = (transformation_.block<3,3> (0,0)) *
-  // (guess.block<3,3> (0,0)); final_transformation_.block <3, 1> (0, 3) =
-  // transformation_.block <3, 1> (0, 3) + guess.rightCols<1>.block <3, 1> (0, 3);
-  final_transformation_.topLeftCorner(3, 3) =
-      previous_transformation_.topLeftCorner(3, 3) * guess.topLeftCorner(3, 3);
+  final_transformation_.topLeftCorner<3, 3>().noalias() =
+      previous_transformation_.topLeftCorner<3, 3>() * guess.topLeftCorner<3, 3>();
   final_transformation_(0, 3) = previous_transformation_(0, 3) + guess(0, 3);
   final_transformation_(1, 3) = previous_transformation_(1, 3) + guess(1, 3);
   final_transformation_(2, 3) = previous_transformation_(2, 3) + guess(2, 3);

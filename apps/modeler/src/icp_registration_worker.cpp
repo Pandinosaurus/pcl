@@ -50,19 +50,12 @@ pcl::modeler::ICPRegistrationWorker::ICPRegistrationWorker(
 : AbstractWorker(cloud_mesh_items, parent)
 , cloud_(std::move(cloud))
 , x_min_(std::numeric_limits<double>::max())
-, x_max_(std::numeric_limits<double>::min())
+, x_max_(std::numeric_limits<double>::lowest())
 , y_min_(std::numeric_limits<double>::max())
-, y_max_(std::numeric_limits<double>::min())
+, y_max_(std::numeric_limits<double>::lowest())
 , z_min_(std::numeric_limits<double>::max())
-, z_max_(std::numeric_limits<double>::min())
-, max_correspondence_distance_(nullptr)
-, max_iterations_(nullptr)
-, transformation_epsilon_(nullptr)
-, euclidean_fitness_epsilon_(nullptr)
+, z_max_(std::numeric_limits<double>::lowest())
 {}
-
-//////////////////////////////////////////////////////////////////////////////////////////////
-pcl::modeler::ICPRegistrationWorker::~ICPRegistrationWorker() {}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 void
@@ -73,14 +66,14 @@ pcl::modeler::ICPRegistrationWorker::initParameters(CloudMeshItem* cloud_mesh_it
   Eigen::Vector4f min_pt, max_pt;
   pcl::getMinMax3D(*(cloud_mesh_item->getCloudMesh()->getCloud()), min_pt, max_pt);
 
-  x_min_ = std::min(double(min_pt.x()), x_min_);
-  x_max_ = std::max(double(max_pt.x()), x_max_);
+  x_min_ = std::min(static_cast<double>(min_pt.x()), x_min_);
+  x_max_ = std::max(static_cast<double>(max_pt.x()), x_max_);
 
-  y_min_ = std::min(double(min_pt.y()), y_min_);
-  y_max_ = std::max(double(max_pt.y()), y_max_);
+  y_min_ = std::min(static_cast<double>(min_pt.y()), y_min_);
+  y_max_ = std::max(static_cast<double>(max_pt.y()), y_max_);
 
-  z_min_ = std::min(double(min_pt.z()), z_min_);
-  z_max_ = std::max(double(max_pt.z()), z_max_);
+  z_min_ = std::min(static_cast<double>(min_pt.z()), z_min_);
+  z_max_ = std::max(static_cast<double>(max_pt.z()), z_max_);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////

@@ -35,11 +35,13 @@
  *
  */
 
+#include <pcl/common/io.h>  // for getFieldSize
+#include <pcl/common/pcl_filesystem.h>
 #include <pcl/common/utils.h> // pcl::utils::ignore
 #include <pcl/io/ascii_io.h>
 #include <istream>
 #include <fstream>
-#include <boost/filesystem.hpp>
+
 #include <boost/lexical_cast.hpp> // for lexical_cast
 #include <boost/algorithm/string.hpp> // for split
 #include <cstdint>
@@ -47,10 +49,6 @@
 //////////////////////////////////////////////////////////////////////////////
 pcl::ASCIIReader::ASCIIReader ()
 {
-  extension_ = ".txt";
-  sep_chars_ = ", \n\r\t";
-  name_ = "AsciiReader";
-
   {
     pcl::PCLPointField f;
     f.datatype = pcl::PCLPointField::FLOAT32;
@@ -91,14 +89,14 @@ pcl::ASCIIReader::readHeader (const std::string& file_name,
 {
   pcl::utils::ignore(offset); //offset is not used for ascii file implementation
 	
-  boost::filesystem::path fpath = file_name;
+  pcl_fs::path fpath = file_name;
 
-  if (!boost::filesystem::exists (fpath))
+  if (!pcl_fs::exists (fpath))
   {
     PCL_ERROR ("[%s] File %s does not exist.\n", name_.c_str (), file_name.c_str ());
     return (-1);
   }
-  if (boost::filesystem::extension (fpath) != extension_)
+  if (fpath.extension ().string () != extension_)
   {
     PCL_ERROR ("[%s] File does not have %s extension. \n", name_.c_str(), extension_.c_str());
     return -1;
@@ -139,14 +137,14 @@ pcl::ASCIIReader::read (
   unsigned int data_idx;
   if (this->readHeader (file_name, cloud, origin, orientation, file_version, data_type, data_idx, offset) < 0) 
     return (-1);
-  cloud.data.resize (cloud.height * cloud.width * cloud.point_step);
+  cloud.data.resize (static_cast<std::size_t>(cloud.height) * cloud.width * cloud.point_step);
 
   std::string line;
   std::fstream ifile (file_name.c_str (), std::fstream::in);
 
-  int total=0;
+  std::size_t total = 0;
 
-  std::uint8_t* data = &cloud.data[0];
+  std::uint8_t* data = cloud.data.data();
   while (std::getline (ifile, line))
   {
     boost::algorithm::trim (line);
@@ -197,49 +195,27 @@ pcl::ASCIIReader::parse (
     const pcl::PCLPointField& field,
     std::uint8_t* data_target)
 {
+#define ASSIGN_TOKEN(CASE_LABEL)                                                       \
+  case CASE_LABEL: {                                                                   \
+    *(reinterpret_cast<pcl::traits::asType_t<CASE_LABEL>*>(data_target)) =             \
+        boost::lexical_cast<pcl::traits::asType_t<(CASE_LABEL)>>(token);               \
+    return sizeof(pcl::traits::asType_t<CASE_LABEL>);                                  \
+  }
   switch (field.datatype)
   {
-    case pcl::PCLPointField::INT8:
-    {
-      *(reinterpret_cast<std::int8_t*>(data_target)) = boost::lexical_cast<std::int8_t> (token);
-      return (1);
-    }
-    case pcl::PCLPointField::UINT8:
-    {
-      *(reinterpret_cast<std::uint8_t*>(data_target)) = boost::lexical_cast<std::uint8_t> (token);
-      return 1;
-    }
-    case pcl::PCLPointField::INT16:
-    {
-      *(reinterpret_cast<std::int16_t*>(data_target)) = boost::lexical_cast<std::int16_t> (token);
-      return 2;
-    }
-    case pcl::PCLPointField::UINT16:
-    {
-      *(reinterpret_cast<std::uint16_t*>(data_target)) = boost::lexical_cast<std::uint16_t> (token);
-      return 2;
-    }
-    case pcl::PCLPointField::INT32:
-    {
-      *(reinterpret_cast<std::int32_t*>(data_target)) = boost::lexical_cast<std::int32_t> (token);
-      return 4;
-    }
-    case pcl::PCLPointField::UINT32:
-    {
-      *(reinterpret_cast<std::uint32_t*>(data_target)) = boost::lexical_cast<std::uint32_t> (token);
-      return 4;
-    }
-    case pcl::PCLPointField::FLOAT32:
-    {
-      *(reinterpret_cast<float*>(data_target)) = boost::lexical_cast<float> (token);
-      return 4;
-    }
-    case pcl::PCLPointField::FLOAT64:
-    {
-      *(reinterpret_cast<double*>(data_target)) = boost::lexical_cast<double> (token);
-      return 8;
-    }
+    ASSIGN_TOKEN(pcl::PCLPointField::BOOL)
+    ASSIGN_TOKEN(pcl::PCLPointField::INT8)
+    ASSIGN_TOKEN(pcl::PCLPointField::UINT8)
+    ASSIGN_TOKEN(pcl::PCLPointField::INT16)
+    ASSIGN_TOKEN(pcl::PCLPointField::UINT16)
+    ASSIGN_TOKEN(pcl::PCLPointField::INT32)
+    ASSIGN_TOKEN(pcl::PCLPointField::UINT32)
+    ASSIGN_TOKEN(pcl::PCLPointField::INT64)
+    ASSIGN_TOKEN(pcl::PCLPointField::UINT64)
+    ASSIGN_TOKEN(pcl::PCLPointField::FLOAT32)
+    ASSIGN_TOKEN(pcl::PCLPointField::FLOAT64)
   }
+#undef ASSIGN_TOKEN
   return 0;
 }
 
@@ -247,25 +223,6 @@ pcl::ASCIIReader::parse (
 std::uint32_t
 pcl::ASCIIReader::typeSize (int type)
 {
-  switch (type)
-  {
-    case pcl::PCLPointField::INT8:
-      return 1;
-    case pcl::PCLPointField::UINT8:
-      return 1;
-    case pcl::PCLPointField::INT16:
-      return 2;
-    case pcl::PCLPointField::UINT16:
-      return 2;
-    case pcl::PCLPointField::INT32:
-      return 4;
-    case pcl::PCLPointField::UINT32:
-      return 4;
-    case pcl::PCLPointField::FLOAT32:
-      return 4;
-    case pcl::PCLPointField::FLOAT64:
-      return 8;
-  }
-  return (0);
+  return getFieldSize(type);
 }
 

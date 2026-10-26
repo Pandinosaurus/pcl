@@ -159,7 +159,6 @@ public:
    * \param[in] query_index the index in \a cloud representing the query point
    * \param[out] result_index the resultant index of the neighbor point
    * \param[out] sqr_distance the resultant squared distance to the neighboring point
-   * \return number of neighbors found
    */
   inline void
   approxNearestSearch(const PointCloud& cloud,
@@ -184,7 +183,6 @@ public:
    * position in the indices vector.
    * \param[out] result_index the resultant index of the neighbor point
    * \param[out] sqr_distance the resultant squared distance to the neighboring point
-   * \return number of neighbors found
    */
   void
   approxNearestSearch(uindex_t query_index, index_t& result_index, float& sqr_distance);
@@ -261,7 +259,8 @@ public:
 
   /** \brief Get indices of all voxels that are intersected by a ray (origin,
    * direction).
-   * \param[in] origin ray origin \param[in] direction ray direction vector
+   * \param[in] origin ray origin
+   * \param[in] direction ray direction vector
    * \param[out] k_indices resulting point indices from intersected voxels
    * \param[in] max_voxel_count stop raycasting when this many voxels intersected (0:
    * disable)
@@ -375,7 +374,8 @@ protected:
 
   /** \brief Recursive search method that explores the octree and finds neighbors within
    * a given radius
-   * \param[in] point query point \param[in] radiusSquared squared search radius
+   * \param[in] point query point
+   * \param[in] radiusSquared squared search radius
    * \param[in] node current octree node to be explored
    * \param[in] key octree key addressing a leaf node.
    * \param[in] tree_depth current depth/level in the octree
@@ -401,7 +401,7 @@ protected:
    * \param[in] key octree key addressing a leaf node.
    * \param[in] tree_depth current depth/level in the octree
    * \param[in] squared_search_radius squared search radius distance
-   * \param[out] point_candidates priority queue of nearest neigbor point candidates
+   * \param[out] point_candidates priority queue of nearest neighbor point candidates
    * \return squared search radius based on current point candidate set found
    */
   double
@@ -441,7 +441,7 @@ protected:
    * \param[in] max_x octree nodes X coordinate of upper bounding box corner
    * \param[in] max_y octree nodes Y coordinate of upper bounding box corner
    * \param[in] max_z octree nodes Z coordinate of upper bounding box corner
-   * \param[in] a
+   * \param[in] a number used for voxel child index remapping
    * \param[in] node current octree node to be explored
    * \param[in] key octree key addressing a leaf node.
    * \param[out] voxel_center_list results are written to this vector of PointT elements
@@ -488,7 +488,7 @@ protected:
    * \param[in] max_x octree nodes X coordinate of upper bounding box corner
    * \param[in] max_y octree nodes Y coordinate of upper bounding box corner
    * \param[in] max_z octree nodes Z coordinate of upper bounding box corner
-   * \param[in] a
+   * \param[in] a number used for voxel child index remapping
    * \param[in] node current octree node to be explored
    * \param[in] key octree key addressing a leaf node.
    * \param[out] k_indices resulting indices
@@ -510,15 +510,15 @@ protected:
                                       uindex_t max_voxel_count) const;
 
   /** \brief Initialize raytracing algorithm
-   * \param origin
-   * \param direction
-   * \param[in] min_x octree nodes X coordinate of lower bounding box corner
-   * \param[in] min_y octree nodes Y coordinate of lower bounding box corner
-   * \param[in] min_z octree nodes Z coordinate of lower bounding box corner
-   * \param[in] max_x octree nodes X coordinate of upper bounding box corner
-   * \param[in] max_y octree nodes Y coordinate of upper bounding box corner
-   * \param[in] max_z octree nodes Z coordinate of upper bounding box corner
-   * \param a
+   * \param[in] origin ray origin
+   * \param[in] direction ray direction vector
+   * \param[out] min_x octree nodes X coordinate of lower bounding box corner
+   * \param[out] min_y octree nodes Y coordinate of lower bounding box corner
+   * \param[out] min_z octree nodes Z coordinate of lower bounding box corner
+   * \param[out] max_x octree nodes X coordinate of upper bounding box corner
+   * \param[out] max_y octree nodes Y coordinate of upper bounding box corner
+   * \param[out] max_z octree nodes Z coordinate of upper bounding box corner
+   * \param[out] a number used for voxel child index remapping
    */
   inline void
   initIntersectedVoxel(Eigen::Vector3f& origin,
@@ -532,7 +532,7 @@ protected:
                        unsigned char& a) const
   {
     // Account for division by zero when direction vector is 0.0
-    const float epsilon = 1e-10f;
+    constexpr float epsilon = 1e-10f;
     if (direction.x() == 0.0)
       direction.x() = epsilon;
     if (direction.y() == 0.0)

@@ -72,7 +72,7 @@ pcl::RandomSample<pcl::PCLPointCloud2>::applyFilter (PCLPointCloud2 &output)
     const static float user_filter_value = user_filter_value_;
     for (const auto ri : *removed_indices_) // ri = removed index
     {
-      std::uint8_t* pt_data = reinterpret_cast<std::uint8_t*> (&output.data[ri * output.point_step]);
+      auto* pt_data = reinterpret_cast<std::uint8_t*> (&output.data[ri * output.point_step]);
       for (const auto &offset : offsets)
       {
         memcpy (pt_data + offset, &user_filter_value, sizeof (float));
@@ -117,7 +117,11 @@ pcl::RandomSample<pcl::PCLPointCloud2>::applyFilter (Indices &indices)
       removed_indices_->resize (N - sample_size);
 
     // Set random seed so derived indices are the same each time the filter runs
+#ifdef __OpenBSD__
+    srand_deterministic (seed_); // OpenBSD only offers repeatable sequences with this function
+#else
     std::srand (seed_);
+#endif // __OpenBSD__
 
     // Algorithm S
     std::size_t i = 0;

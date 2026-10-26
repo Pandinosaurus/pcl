@@ -148,8 +148,8 @@ pcl::people::GroundBasedPeopleDetectionApp<PointT>::setSensorPortraitOrientation
 template<typename PointT>
 void pcl::people::GroundBasedPeopleDetectionApp<PointT>::updateMinMaxPoints ()
 {
-  min_points_ = (int) (min_height_ * min_width_ / voxel_size_ / voxel_size_);
-  max_points_ = (int) (max_height_ * max_width_ / voxel_size_ / voxel_size_);
+  min_points_ = static_cast<int> (min_height_ * min_width_ / voxel_size_ / voxel_size_);
+  max_points_ = static_cast<int> (max_height_ * max_width_ / voxel_size_ / voxel_size_);
 }
 
 template <typename PointT> void
@@ -274,7 +274,7 @@ pcl::people::GroundBasedPeopleDetectionApp<PointT>::applyTransformationGround ()
   {
     Eigen::Transform<float, 3, Eigen::Affine> transform;
     transform = transformation_;
-    ground_coeffs_transformed_ = transform.matrix() * ground_coeffs_;
+    ground_coeffs_transformed_.noalias() = transform.matrix() * ground_coeffs_;
   }
   else
   {
@@ -287,7 +287,7 @@ pcl::people::GroundBasedPeopleDetectionApp<PointT>::applyTransformationIntrinsic
 {
   if (transformation_set_ && intrinsics_matrix_set_)
   {
-    intrinsics_matrix_transformed_ = intrinsics_matrix_ * transformation_.transpose();
+    intrinsics_matrix_transformed_.noalias() = intrinsics_matrix_ * transformation_.transpose();
   }
   else
   {
@@ -375,13 +375,10 @@ pcl::people::GroundBasedPeopleDetectionApp<PointT>::compute (std::vector<pcl::pe
 
   // Euclidean Clustering:
   std::vector<pcl::PointIndices> cluster_indices;
-  typename pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>);
-  tree->setInputCloud(no_ground_cloud_);
   pcl::EuclideanClusterExtraction<PointT> ec;
   ec.setClusterTolerance(2 * voxel_size_);
   ec.setMinClusterSize(min_points_);
   ec.setMaxClusterSize(max_points_);
-  ec.setSearchMethod(tree);
   ec.setInputCloud(no_ground_cloud_);
   ec.extract(cluster_indices);
 
@@ -400,7 +397,7 @@ pcl::people::GroundBasedPeopleDetectionApp<PointT>::compute (std::vector<pcl::pe
   {
     swapDimensions(rgb_image_);
   }
-  for(typename std::vector<pcl::people::PersonCluster<PointT> >::iterator it = clusters.begin(); it != clusters.end(); ++it)
+  for(auto it = clusters.begin(); it != clusters.end(); ++it)
   {
     //Evaluate confidence for the current PersonCluster:
     Eigen::Vector3f centroid = intrinsics_matrix_transformed_ * (it->getTCenter());

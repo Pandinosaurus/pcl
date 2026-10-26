@@ -46,9 +46,9 @@
 #include <ctime>
 
 // Boost
-#include <pcl/outofcore/boost.h>
 #include <boost/random/bernoulli_distribution.hpp>
 #include <boost/random/uniform_int.hpp>
+#include <boost/random/variate_generator.hpp> // for boost::variate_generator
 #include <boost/uuid/uuid_io.hpp>
 
 // PCL
@@ -384,7 +384,7 @@ namespace pcl
         buffcount = count - filecount;
       }
 
-      std::uint64_t filesamp = static_cast<std::uint64_t> (percent * static_cast<double> (filecount));
+      auto filesamp = static_cast<std::uint64_t> (percent * static_cast<double> (filecount));
       
       std::uint64_t buffsamp = (buffcount > 0) ? (static_cast<std::uint64_t > (percent * static_cast<double> (buffcount))) : 0;
 

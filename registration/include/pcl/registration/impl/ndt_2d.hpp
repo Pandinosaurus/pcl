@@ -99,7 +99,7 @@ class NormalDist {
   using PointCloud = pcl::PointCloud<PointT>;
 
 public:
-  NormalDist() : min_n_(3), n_(0) {}
+  NormalDist() = default;
 
   /** \brief Store a point index to use later for estimating distribution parameters.
    * \param[in] i Point index to store
@@ -121,10 +121,10 @@ public:
     Eigen::Vector2d sx = Eigen::Vector2d::Zero();
     Eigen::Matrix2d sxx = Eigen::Matrix2d::Zero();
 
-    for (auto i = pt_indices_.cbegin(); i != pt_indices_.cend(); i++) {
-      Eigen::Vector2d p(cloud[*i].x, cloud[*i].y);
+    for (const auto& pt_index : pt_indices_) {
+      Eigen::Vector2d p(cloud[pt_index].x, cloud[pt_index].y);
       sx += p;
-      sxx += p * p.transpose();
+      sxx.noalias() += p * p.transpose();
     }
 
     n_ = pt_indices_.size();
@@ -145,7 +145,7 @@ public:
         Eigen::Matrix2d q = solver.eigenvectors();
         // set minimum smallest eigenvalue:
         l(0, 0) = l(1, 1) * min_covar_eigvalue_mult;
-        covar = q * l * q.transpose();
+        covar.noalias() = q * l * q.transpose();
       }
       covar_inv_ = covar.inverse();
     }
@@ -176,7 +176,7 @@ public:
     const Eigen::Vector2d p_xy(transformed_pt.x, transformed_pt.y);
     const Eigen::Vector2d q = p_xy - mean_;
     const Eigen::RowVector2d qt_cvi(q.transpose() * covar_inv_);
-    const double exp_qt_cvi_q = std::exp(-0.5 * double(qt_cvi * q));
+    const double exp_qt_cvi_q = std::exp(-0.5 * static_cast<double>(qt_cvi * q));
     r.value = -exp_qt_cvi_q;
 
     Eigen::Matrix<double, 2, 3> jacobian;
@@ -184,7 +184,7 @@ public:
         x * cos_theta - y * sin_theta;
 
     for (std::size_t i = 0; i < 3; i++)
-      r.grad[i] = double(qt_cvi * jacobian.col(i)) * exp_qt_cvi_q;
+      r.grad[i] = static_cast<double>(qt_cvi * jacobian.col(i)) * exp_qt_cvi_q;
 
     // second derivative only for i == j == 2:
     const Eigen::Vector2d d2q_didj(y * sin_theta - x * cos_theta,
@@ -194,7 +194,8 @@ public:
       for (std::size_t j = 0; j < 3; j++)
         r.hessian(i, j) =
             -exp_qt_cvi_q *
-            (double(-qt_cvi * jacobian.col(i)) * double(-qt_cvi * jacobian.col(j)) +
+            (static_cast<double>(-qt_cvi * jacobian.col(i)) *
+                 static_cast<double>(-qt_cvi * jacobian.col(j)) +
              (-qt_cvi * ((i == 2 && j == 2) ? d2q_didj : Eigen::Vector2d::Zero())) +
              (-jacobian.col(j).transpose() * covar_inv_ * jacobian.col(i)));
 
@@ -202,9 +203,9 @@ public:
   }
 
 protected:
-  const std::size_t min_n_;
+  const std::size_t min_n_{3};
 
-  std::size_t n_;
+  std::size_t n_{0};
   std::vector<std::size_t> pt_indices_;
   Eigen::Vector2d mean_;
   Eigen::Matrix2d covar_inv_;
@@ -436,29 +437,28 @@ NormalDistributionsTransform2D<PointSource, PointTarget>::computeTransformation(
 
     if (score.value != 0) {
       // test for positive definiteness, and adjust to ensure it if necessary:
-      Eigen::EigenSolver<Eigen::Matrix3d> solver;
-      solver.compute(score.hessian, false);
+      Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(score.hessian,
+                                                            Eigen::EigenvaluesOnly);
       double min_eigenvalue = 0;
       for (int i = 0; i < 3; i++)
-        if (solver.eigenvalues()[i].real() < min_eigenvalue)
-          min_eigenvalue = solver.eigenvalues()[i].real();
+        if (solver.eigenvalues()[i] < min_eigenvalue)
+          min_eigenvalue = solver.eigenvalues()[i];
 
       // ensure "safe" positive definiteness: this is a detail missing
       // from the original paper
       if (min_eigenvalue < 0) {
         double lambda = 1.1 * min_eigenvalue - 1;
         score.hessian += Eigen::Vector3d(-lambda, -lambda, -lambda).asDiagonal();
-        solver.compute(score.hessian, false);
+        solver.compute(score.hessian, Eigen::EigenvaluesOnly);
         PCL_DEBUG("[pcl::NormalDistributionsTransform2D::computeTransformation] adjust "
                   "hessian: %f: new eigenvalues:%f %f %f\n",
                   float(lambda),
-                  solver.eigenvalues()[0].real(),
-                  solver.eigenvalues()[1].real(),
-                  solver.eigenvalues()[2].real());
+                  solver.eigenvalues()[0],
+                  solver.eigenvalues()[1],
+                  solver.eigenvalues()[2]);
       }
-      assert(solver.eigenvalues()[0].real() >= 0 &&
-             solver.eigenvalues()[1].real() >= 0 &&
-             solver.eigenvalues()[2].real() >= 0);
+      assert(solver.eigenvalues()[0] >= 0 && solver.eigenvalues()[1] >= 0 &&
+             solver.eigenvalues()[2] >= 0);
 
       Eigen::Vector3d delta_transformation(-score.hessian.inverse() * score.grad);
       Eigen::Vector3d new_transformation =

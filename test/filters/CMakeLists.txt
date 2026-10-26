@@ -1,12 +1,11 @@
 set(SUBSYS_NAME tests_filters)
 set(SUBSYS_DESC "Point cloud library filters module unit tests")
 PCL_SET_TEST_DEPENDENCIES(SUBSYS_DEPS filters)
+list(APPEND SUBSYS_DEPS kdtree)
 set(OPT_DEPS io features segmentation)
 
-set(DEFAULT ON)
-set(build TRUE)
-PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ${DEFAULT} "${REASON}")
-PCL_SUBSYS_DEPEND(build "${SUBSYS_NAME}" DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
+PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ON)
+PCL_SUBSYS_DEPEND(build NAME ${SUBSYS_NAME} DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
 
 if(NOT build)
   return()
@@ -32,6 +31,11 @@ PCL_ADD_TEST(filters_local_maximum test_filters_local_maximum
 PCL_ADD_TEST(filters_uniform_sampling test_uniform_sampling
              FILES test_uniform_sampling.cpp
              LINK_WITH pcl_gtest pcl_common pcl_filters)
+
+PCL_ADD_TEST(filters_farthest_point_sampling test_farthest_point_sampling
+             FILES test_farthest_point_sampling.cpp
+             LINK_WITH pcl_gtest pcl_filters pcl_io
+             ARGUMENTS "${PCL_SOURCE_DIR}/test/bunny.pcd")
 
 PCL_ADD_TEST(filters_convolution test_convolution
              FILES test_convolution.cpp

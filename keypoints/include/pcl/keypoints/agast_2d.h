@@ -106,7 +106,7 @@ namespace pcl
           /** \brief Applies non-max-suppression. 
             * \param[in] intensity_data the image data
             * \param[in] input the keypoint positions
-            * \param[out] output the resultant keypoints after non-max-supression
+            * \param[out] output the resultant keypoints after non-max-suppression
             */
           void
           applyNonMaxSuppression (const std::vector<unsigned char>& intensity_data, 
@@ -116,7 +116,7 @@ namespace pcl
           /** \brief Applies non-max-suppression. 
             * \param[in] intensity_data the image data
             * \param[in] input the keypoint positions
-            * \param[out] output the resultant keypoints after non-max-supression
+            * \param[out] output the resultant keypoints after non-max-suppression
             */
           void
           applyNonMaxSuppression (const std::vector<float>& intensity_data, 
@@ -146,7 +146,7 @@ namespace pcl
 
           /** \brief Get the threshold for corner detection, as set by the user. */
           inline double
-          getThreshold ()
+          getThreshold () const
           {
             return (threshold_);
           }
@@ -162,8 +162,8 @@ namespace pcl
           }
 
           /** \brief Get the maximum number of keypoints to return, as set by the user. */
-          inline unsigned int 
-          getMaxKeypoints ()
+          inline unsigned int
+          getMaxKeypoints () const
           {
             return (nr_max_keypoints_);
           }
@@ -213,7 +213,7 @@ namespace pcl
           /** \brief Non-max-suppression helper method.
             * \param[in] input the keypoint positions
             * \param[in] scores the keypoint scores computed on the image data
-            * \param[out] output the resultant keypoints after non-max-supression
+            * \param[out] output the resultant keypoints after non-max-suppression
             */
           void
           applyNonMaxSuppression (const pcl::PointCloud<pcl::PointUV> &input, 
@@ -570,10 +570,8 @@ namespace pcl
 
       /** \brief Constructor */
       AgastKeypoint2DBase ()
-        : threshold_ (10)
-        , apply_non_max_suppression_ (true)
-        , bmax_ (255)
-        , nr_max_keypoints_ (std::numeric_limits<unsigned int>::max ())
+        : 
+         nr_max_keypoints_ (std::numeric_limits<unsigned int>::max ())
       {
         k_ = 1;
       }
@@ -673,13 +671,13 @@ namespace pcl
       IntensityT intensity_;
       
       /** \brief Threshold for corner detection. */
-      double threshold_;
+      double threshold_{10};
 
       /** \brief Determines whether non-max-suppression is activated. */
-      bool apply_non_max_suppression_;
+      bool apply_non_max_suppression_{true};
 
       /** \brief Max image value. */
-      double bmax_;
+      double bmax_{255};
 
       /** \brief The Agast detector to use. */
       AgastDetectorPtr detector_;
@@ -737,7 +735,7 @@ namespace pcl
       }
 
       /** \brief Destructor. */
-      ~AgastKeypoint2D () = default;
+      ~AgastKeypoint2D () override = default;
 
     protected:
       /** \brief Detects the keypoints.

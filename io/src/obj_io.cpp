@@ -37,12 +37,13 @@
  */
 #include <pcl/io/obj_io.h>
 #include <fstream>
+#include <exception>
 #include <pcl/common/io.h>
+#include <pcl/common/pcl_filesystem.h>
 #include <pcl/console/time.h>
 #include <pcl/io/split.h>
 
 #include <boost/lexical_cast.hpp> // for lexical_cast
-#include <boost/filesystem.hpp> // for exists
 #include <boost/algorithm/string.hpp> // for trim
 
 pcl::MTLReader::MTLReader ()
@@ -135,7 +136,7 @@ pcl::MTLReader::fillRGBfromRGB (const std::vector<std::string>& split_line,
 std::vector<pcl::TexMaterial>::const_iterator
 pcl::MTLReader::getMaterial (const std::string& material_name) const
 {
-  std::vector<pcl::TexMaterial>::const_iterator mat_it = materials_.begin ();
+  auto mat_it = materials_.begin ();
   for (; mat_it != materials_.end (); ++mat_it)
     if (mat_it->tex_name == material_name)
       break;
@@ -146,21 +147,27 @@ int
 pcl::MTLReader::read (const std::string& obj_file_name,
                       const std::string& mtl_file_name)
 {
-  if (obj_file_name.empty() || !boost::filesystem::exists (obj_file_name))
+  if (obj_file_name.empty ())
+  {
+    PCL_ERROR ("[pcl::MTLReader::read] No OBJ file name given!\n");
+    return (-1);
+  }
+
+  if (!pcl_fs::exists (obj_file_name))
   {
     PCL_ERROR ("[pcl::MTLReader::read] Could not find file '%s'!\n",
                obj_file_name.c_str ());
     return (-1);
   }
 
-  if (mtl_file_name.empty())
+  if (mtl_file_name.empty ())
   {
     PCL_ERROR ("[pcl::MTLReader::read] MTL file name is empty!\n");
     return (-1);
   }
 
-  boost::filesystem::path obj_file_path (obj_file_name.c_str ());
-  boost::filesystem::path mtl_file_path = obj_file_path.parent_path ();
+  pcl_fs::path obj_file_path (obj_file_name.c_str ());
+  pcl_fs::path mtl_file_path = obj_file_path.parent_path ();
   mtl_file_path /=  mtl_file_name;
   return (read (mtl_file_path.string ()));
 }
@@ -168,14 +175,23 @@ pcl::MTLReader::read (const std::string& obj_file_name,
 int
 pcl::MTLReader::read (const std::string& mtl_file_path)
 {
-  if (mtl_file_path.empty() || !boost::filesystem::exists (mtl_file_path))
+  if (mtl_file_path.empty ())
+  {
+    PCL_ERROR ("[pcl::MTLReader::read] No file name given!\n");
+    return (-1);
+  }
+
+  // Open file in binary mode to avoid problem of
+  // std::getline() corrupting the result of ifstream::tellg()
+  std::ifstream mtl_file;
+  mtl_file.open (mtl_file_path.c_str (), std::ios::binary);
+
+  if (!mtl_file.good ())
   {
     PCL_ERROR ("[pcl::MTLReader::read] Could not find file '%s'.\n", mtl_file_path.c_str ());
     return (-1);
   }
 
-  std::ifstream mtl_file;
-  mtl_file.open (mtl_file_path.c_str (), std::ios::binary);
   if (!mtl_file.is_open () || mtl_file.fail ())
   {
     PCL_ERROR ("[pcl::MTLReader::read] Could not open file '%s'! Error : %s\n",
@@ -186,7 +202,7 @@ pcl::MTLReader::read (const std::string& mtl_file_path)
 
   std::string line;
   std::vector<std::string> st;
-  boost::filesystem::path parent_path = mtl_file_path.c_str ();
+  pcl_fs::path parent_path = mtl_file_path.c_str ();
   parent_path = parent_path.parent_path ();
 
   try
@@ -200,8 +216,8 @@ pcl::MTLReader::read (const std::string& mtl_file_path)
 
       // Tokenize the line
       pcl::split (st, line, "\t\r ");
-      // Ignore comments
-      if (st[0] == "#")
+      // Ignore comments and lines with only whitespace
+      if (st.empty() || st[0] == "#")
         continue;
 
       if (st[0] == "newmtl")
@@ -307,7 +323,7 @@ pcl::MTLReader::read (const std::string& mtl_file_path)
 
       if (st[0] == "map_Kd")
       {
-        boost::filesystem::path full_path = parent_path;
+        pcl_fs::path full_path = parent_path;
         full_path/= st.back ().c_str ();
         materials_.back ().tex_file = full_path.string ();
         continue;
@@ -340,18 +356,25 @@ pcl::OBJReader::readHeader (const std::string &file_name, pcl::PCLPointCloud2 &c
   data_type = 0;
   data_idx = offset;
 
-  std::ifstream fs;
   std::string line;
 
-  if (file_name.empty() || !boost::filesystem::exists (file_name))
+  if (file_name.empty ())
   {
-    PCL_ERROR ("[pcl::OBJReader::readHeader] Could not find file '%s'.\n", file_name.c_str ());
+    PCL_ERROR ("[pcl::OBJReader::readHeader] No file name given!\n");
     return (-1);
   }
 
   // Open file in binary mode to avoid problem of
   // std::getline() corrupting the result of ifstream::tellg()
+  std::ifstream fs;
   fs.open (file_name.c_str (), std::ios::binary);
+
+  if (!fs.good ())
+  {
+    PCL_ERROR ("[pcl::OBJReader::readHeader] Could not find file '%s'.\n", file_name.c_str ());
+    return (-1);
+  }
+
   if (!fs.is_open () || fs.fail ())
   {
     PCL_ERROR ("[pcl::OBJReader::readHeader] Could not open file '%s'! Error : %s\n", file_name.c_str (), strerror(errno));
@@ -380,7 +403,7 @@ pcl::OBJReader::readHeader (const std::string &file_name, pcl::PCLPointCloud2 &c
         continue;
 
       // Trim the line
-      //TOOD: we can easily do this without boost
+      //TODO: we can easily do this without boost
       boost::trim (line);
       
       // Ignore comments
@@ -524,10 +547,18 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PCLPointCloud2 &cloud,
 
   // Get normal_x and rgba fields indices
   int normal_x_field = -1;
+  std::vector<Eigen::Vector3f> normals;
+
+  //vector[idx of vertex]<accumulated normals{x, y, z}>
+  std::vector<Eigen::Vector3f> normal_mapping;
+  bool normal_mapping_used = false;
+
   // std::size_t rgba_field = 0;
   for (std::size_t i = 0; i < cloud.fields.size (); ++i)
     if (cloud.fields[i].name == "normal_x")
     {
+      normals.reserve(cloud.width);
+      normal_mapping.resize(cloud.width, Eigen::Vector3f::Zero());
       normal_x_field = i;
       break;
     }
@@ -551,8 +582,8 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PCLPointCloud2 &cloud,
       // Tokenize the line
       pcl::split (st, line, "\t\r ");
 
-      // Ignore comments
-      if (st[0] == "#")
+      // Ignore comments and lines with only whitespace
+      if (st.empty() || st[0] == "#")
         continue;
 
       // Vertex
@@ -580,28 +611,72 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PCLPointCloud2 &cloud,
       // Vertex normal
       if (st[0] == "vn")
       {
-        if (normal_idx >= cloud.width) 
-        {
-          if (normal_idx == cloud.width)
-            PCL_WARN ("[pcl:OBJReader] Too many vertex normals (expected %d), skipping remaining normals.\n", cloud.width, normal_idx + 1);
-          ++normal_idx;
-          continue;
-        }
         try
         {
-          for (int i = 1, f = normal_x_field; i < 4; ++i, ++f)
-          {
-            float value = boost::lexical_cast<float> (st[i]);
-            memcpy (&cloud.data[normal_idx * cloud.point_step + cloud.fields[f].offset],
-                &value,
-                sizeof (float));
-          }
+          normals.emplace_back(
+            boost::lexical_cast<float> (st[1]),
+            boost::lexical_cast<float> (st[2]),
+            boost::lexical_cast<float> (st[3])
+          );
           ++normal_idx;
         }
         catch (const boost::bad_lexical_cast&)
         {
           PCL_ERROR ("Unable to convert line %s to vertex normal!\n", line.c_str ());
           return (-1);
+        }
+        continue;
+      }
+
+      // Face
+      if (st[0] == "f")
+      {
+        std::vector<std::string> f_st;
+        std::string n_st;
+
+        pcl::Vertices face_vertices; face_vertices.vertices.resize(st.size() - 1);
+        for (std::size_t i = 1; i < st.size (); ++i)
+        {
+          if (st[i].find("//") != std::string::npos)
+          {
+            //covers format v//vn
+            pcl::split(f_st, st[i], "//");
+            n_st = f_st[1];
+          }
+          else if (st[i].find('/') != std::string::npos)
+          {
+            //covers format v/vt/vn and v/vt
+            pcl::split(f_st, st[i], "/");
+            if (f_st.size() > 2)
+              n_st = f_st[2];
+          }
+          else
+            f_st = { st[i] };
+
+          int v = std::stoi(f_st[0]);
+          v = (v < 0) ? point_idx + v : v - 1;
+          if (v < 0 || static_cast<std::size_t> (v) >= cloud.width)
+          {
+            PCL_ERROR ("[pcl::OBJReader::read] Vertex index out of bounds in line %s\n", line.c_str ());
+            fs.close ();
+            return (-1);
+          }
+          face_vertices.vertices[i - 1] = v;
+
+          //handle normals
+          if (!n_st.empty())
+          {
+            int n = std::stoi(n_st);
+            n = (n < 0) ? normal_idx + n : n - 1;
+            if (normal_mapping.empty() || n < 0 || static_cast<std::size_t> (n) >= normals.size())
+            {
+              PCL_ERROR ("[pcl::OBJReader::read] Normal index out of bounds in line %s\n", line.c_str ());
+              fs.close ();
+              return (-1);
+            }
+            normal_mapping[v] += normals[n];
+            normal_mapping_used = true;
+          }
         }
         continue;
       }
@@ -612,6 +687,33 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PCLPointCloud2 &cloud,
     PCL_ERROR ("[pcl::OBJReader::read] %s\n", exception);
     fs.close ();
     return (-1);
+  }
+  catch (const std::exception &exception)
+  {
+    PCL_ERROR ("[pcl::OBJReader::read] %s\n", exception.what ());
+    fs.close ();
+    return (-1);
+  }
+
+  if (normal_mapping_used && !normal_mapping.empty())
+  {
+    for (uindex_t i = 0, main_offset = 0; i < cloud.width; ++i, main_offset += cloud.point_step)
+    {
+      normal_mapping[i].normalize();
+
+      for (int j = 0, f = normal_x_field; j < 3; ++j, ++f)
+        memcpy(&cloud.data[main_offset + cloud.fields[f].offset], &normal_mapping[i][j], sizeof(float));
+    }
+  }
+  else if (cloud.width == normals.size())
+  {
+    // if obj file contains vertex normals (same number as vertices), but does not define faces,
+    // then associate vertices and vertex normals one-to-one
+    for (uindex_t i = 0, main_offset = 0; i < cloud.width; ++i, main_offset += cloud.point_step)
+    {
+      for (int j = 0, f = normal_x_field; j < 3; ++j, ++f)
+        memcpy(&cloud.data[main_offset + cloud.fields[f].offset], &normals[i][j], sizeof(float));
+    }
   }
 
   double total_time = tt.toc ();
@@ -662,23 +764,30 @@ pcl::OBJReader::read (const std::string &file_name, pcl::TextureMesh &mesh,
 
   // Get normal_x and rgba fields indices
   int normal_x_field = -1;
+  std::vector<Eigen::Vector3f> normals;
+
+  //vector[idx of vertex]<accumulated normals{x, y, z}>
+  std::vector<Eigen::Vector3f> normal_mapping;
+
   // std::size_t rgba_field = 0;
   for (std::size_t i = 0; i < mesh.cloud.fields.size (); ++i)
     if (mesh.cloud.fields[i].name == "normal_x")
     {
+      normals.reserve(mesh.cloud.width);
+      normal_mapping.resize(mesh.cloud.width, Eigen::Vector3f::Zero());
       normal_x_field = i;
       break;
     }
 
   std::size_t v_idx = 0;
   std::size_t f_idx = 0;
+  std::size_t vt_idx = 0;
   std::string line;
   std::vector<std::string> st;
   std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f> > coordinates;
   try
   {
     std::size_t vn_idx = 0;
-    std::size_t vt_idx = 0;
 
     while (!fs.eof ())
     {
@@ -690,8 +799,8 @@ pcl::OBJReader::read (const std::string &file_name, pcl::TextureMesh &mesh,
       // Tokenize the line
       pcl::split (st, line, "\t\r ");
 
-      // Ignore comments
-      if (st[0] == "#")
+      // Ignore comments and lines with only whitespace
+      if (st.empty() || st[0] == "#")
         continue;
       // Vertex
       if (st[0] == "v")
@@ -719,13 +828,11 @@ pcl::OBJReader::read (const std::string &file_name, pcl::TextureMesh &mesh,
       {
         try
         {
-          for (int i = 1, f = normal_x_field; i < 4; ++i, ++f)
-          {
-            float value = boost::lexical_cast<float> (st[i]);
-            memcpy (&mesh.cloud.data[vn_idx * mesh.cloud.point_step + mesh.cloud.fields[f].offset],
-                &value,
-                sizeof (float));
-          }
+          normals.emplace_back(
+            boost::lexical_cast<float> (st[1]),
+            boost::lexical_cast<float> (st[2]),
+            boost::lexical_cast<float> (st[3])
+          );
           ++vn_idx;
         }
         catch (const boost::bad_lexical_cast&)
@@ -781,23 +888,71 @@ pcl::OBJReader::read (const std::string &file_name, pcl::TextureMesh &mesh,
       // Face
       if (st[0] == "f")
       {
-        // TODO read in normal indices properly
-        pcl::Vertices face_v; face_v.vertices.resize (st.size () - 1);
+        std::vector<std::string> f_st;
+        std::string n_st;
+        std::string vt_st;
+
+        pcl::Vertices face_vertices; face_vertices.vertices.resize (st.size () - 1);
         pcl::Vertices tex_indices; tex_indices.vertices.reserve (st.size () - 1);
         for (std::size_t i = 1; i < st.size (); ++i)
         {
-          char* str_end;
-          int v = std::strtol(st[i].c_str(), &str_end, 10);
-          v = (v < 0) ? v_idx + v : v - 1;
-          face_v.vertices[i-1] = v;
-          if (str_end[0] == '/' && str_end[1] != '/' && str_end[1] != '\0')
+          if (st[i].find("//") != std::string::npos)
           {
-            // texture coordinate indices are optional
-            int tex_index = std::strtol(str_end+1, &str_end, 10);
-            tex_indices.vertices.push_back (tex_index - 1);
+            //covers format v//vn
+            pcl::split(f_st, st[i], "//");
+            n_st = f_st[1];
+          }
+          else if (st[i].find('/') != std::string::npos)
+          {
+            //covers format v/vt/vn and v/vt
+            pcl::split(f_st, st[i], "/");
+            if (f_st.size() > 1)
+              vt_st = f_st[1];
+
+            if (f_st.size() > 2)
+              n_st = f_st[2];
+          }
+          else
+            f_st = { st[i] };
+
+          int v = std::stoi(f_st[0]);
+          v = (v < 0) ? v_idx + v : v - 1;
+          if (v < 0 || static_cast<std::size_t> (v) >= mesh.cloud.width)
+          {
+            PCL_ERROR ("[pcl::OBJReader::read] Vertex index out of bounds in line %s\n", line.c_str ());
+            fs.close ();
+            return (-1);
+          }
+          face_vertices.vertices[i - 1] = v;
+
+          //handle normals
+          if (!n_st.empty())
+          {
+            int n = std::stoi(n_st);
+            n = (n < 0) ? vn_idx + n : n - 1;
+            if (normal_mapping.empty() || n < 0 || static_cast<std::size_t> (n) >= normals.size())
+            {
+              PCL_ERROR ("[pcl::OBJReader::read] Normal index out of bounds in line %s\n", line.c_str ());
+              fs.close ();
+              return (-1);
+            }
+            normal_mapping[v] += normals[n];
+          }
+
+          if (!vt_st.empty())
+          {
+            int vt = std::stoi(vt_st);
+            vt = (vt < 0) ? vt_idx + vt : vt - 1;
+            if (vt < 0 || static_cast<std::size_t> (vt) >= vt_idx)
+            {
+              PCL_ERROR ("[pcl::OBJReader::read] Texture coordinate index out of bounds in line %s\n", line.c_str ());
+              fs.close ();
+              return (-1);
+            }
+            tex_indices.vertices.push_back(vt);
           }
         }
-        mesh.tex_polygons.back ().push_back (face_v);
+        mesh.tex_polygons.back ().push_back (face_vertices);
         mesh.tex_coord_indices.back ().push_back (tex_indices);
         ++f_idx;
         continue;
@@ -810,11 +965,28 @@ pcl::OBJReader::read (const std::string &file_name, pcl::TextureMesh &mesh,
     fs.close ();
     return (-1);
   }
+  catch (const std::exception &exception)
+  {
+    PCL_ERROR ("[pcl::OBJReader::read] %s\n", exception.what ());
+    fs.close ();
+    return (-1);
+  }
+
+  if (!normal_mapping.empty())
+  {
+    for (uindex_t i = 0, main_offset = 0; i < mesh.cloud.width; ++i, main_offset += mesh.cloud.point_step)
+    {
+      normal_mapping[i].normalize();
+
+      for (int j = 0, f = normal_x_field; j < 3; ++j, ++f)
+        memcpy(&mesh.cloud.data[main_offset + mesh.cloud.fields[f].offset], &normal_mapping[i][j], sizeof(float));
+    }
+  }
 
   double total_time = tt.toc ();
-  PCL_DEBUG ("[pcl::OBJReader::read] Loaded %s as a TextureMesh in %g ms with %g points, %g texture materials, %g polygons.\n",
+  PCL_DEBUG ("[pcl::OBJReader::read] Loaded %s as a TextureMesh in %g ms with %zu points, %zu texture materials, %zu polygons.\n",
              file_name.c_str (), total_time,
-             v_idx -1, mesh.tex_materials.size (), f_idx -1);
+             v_idx, mesh.tex_materials.size (), f_idx);
   fs.close ();
   return (0);
 }
@@ -859,10 +1031,18 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PolygonMesh &mesh,
 
   // Get normal_x and rgba fields indices
   int normal_x_field = -1;
+  std::vector<Eigen::Vector3f> normals;
+
+  //vector[idx of vertex]<accumulated normals{x, y, z}>
+  std::vector<Eigen::Vector3f> normal_mapping;
+  bool normal_mapping_used = false;
+
   // std::size_t rgba_field = 0;
   for (std::size_t i = 0; i < mesh.cloud.fields.size (); ++i)
     if (mesh.cloud.fields[i].name == "normal_x")
     {
+      normals.reserve(mesh.cloud.width);
+      normal_mapping.resize(mesh.cloud.width, Eigen::Vector3f::Zero());
       normal_x_field = i;
       break;
     }
@@ -884,8 +1064,8 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PolygonMesh &mesh,
       // Tokenize the line
       pcl::split (st, line, "\t\r ");
 
-      // Ignore comments
-      if (st[0] == "#")
+      // Ignore comments and lines with only whitespace
+      if (st.empty() || st[0] == "#")
         continue;
 
       // Vertex
@@ -915,13 +1095,11 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PolygonMesh &mesh,
       {
         try
         {
-          for (int i = 1, f = normal_x_field; i < 4; ++i, ++f)
-          {
-            float value = boost::lexical_cast<float> (st[i]);
-            memcpy (&mesh.cloud.data[vn_idx * mesh.cloud.point_step + mesh.cloud.fields[f].offset],
-                &value,
-                sizeof (float));
-          }
+          normals.emplace_back(
+            boost::lexical_cast<float> (st[1]),
+            boost::lexical_cast<float> (st[2]),
+            boost::lexical_cast<float> (st[3])
+          );
           ++vn_idx;
         }
         catch (const boost::bad_lexical_cast&)
@@ -935,13 +1113,52 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PolygonMesh &mesh,
       // Face
       if (st[0] == "f")
       {
+        std::vector<std::string> f_st;
+        std::string n_st;
+
         pcl::Vertices face_vertices; face_vertices.vertices.resize (st.size () - 1);
         for (std::size_t i = 1; i < st.size (); ++i)
         {
-          int v;
-          sscanf (st[i].c_str (), "%d", &v);
+          if (st[i].find("//") != std::string::npos)
+          {
+            //covers format v//vn
+            pcl::split(f_st, st[i], "//");
+            n_st = f_st[1];
+          }
+          else if (st[i].find('/') != std::string::npos)
+          {
+            //covers format v/vt/vn and v/vt
+            pcl::split(f_st, st[i], "/");
+            if (f_st.size() > 2)
+              n_st = f_st[2];
+          }
+          else
+            f_st = { st[i] };
+
+          int v = std::stoi(f_st[0]);
           v = (v < 0) ? v_idx + v : v - 1;
+          if (v < 0 || static_cast<std::size_t> (v) >= mesh.cloud.width)
+          {
+            PCL_ERROR ("[pcl::OBJReader::read] Vertex index out of bounds in line %s\n", line.c_str ());
+            fs.close ();
+            return (-1);
+          }
           face_vertices.vertices[i - 1] = v;
+
+          //handle normals
+          if (!n_st.empty())
+          {
+            int n = std::stoi(n_st);
+            n = (n < 0) ? vn_idx + n : n - 1;
+            if (normal_mapping.empty() || n < 0 || static_cast<std::size_t> (n) >= normals.size())
+            {
+              PCL_ERROR ("[pcl::OBJReader::read] Normal index out of bounds in line %s\n", line.c_str ());
+              fs.close ();
+              return (-1);
+            }
+            normal_mapping[v] += normals[n];
+            normal_mapping_used = true;
+          }
         }
         mesh.polygons.push_back (face_vertices);
         continue;
@@ -954,11 +1171,38 @@ pcl::OBJReader::read (const std::string &file_name, pcl::PolygonMesh &mesh,
     fs.close ();
     return (-1);
   }
+  catch (const std::exception &exception)
+  {
+    PCL_ERROR ("[pcl::OBJReader::read] %s\n", exception.what ());
+    fs.close ();
+    return (-1);
+  }
+
+  if (normal_mapping_used && !normal_mapping.empty())
+  {
+    for (uindex_t i = 0, main_offset = 0; i < mesh.cloud.width; ++i, main_offset += mesh.cloud.point_step)
+    {
+      normal_mapping[i].normalize();
+
+      for (int j = 0, f = normal_x_field; j < 3; ++j, ++f)
+        memcpy(&mesh.cloud.data[main_offset + mesh.cloud.fields[f].offset], &normal_mapping[i][j], sizeof(float));
+    }
+  }
+  else if (mesh.cloud.width == normals.size())
+  {
+    // if obj file contains vertex normals (same number as vertices), but does not define faces,
+    // then associate vertices and vertex normals one-to-one
+    for (uindex_t i = 0, main_offset = 0; i < mesh.cloud.width; ++i, main_offset += mesh.cloud.point_step)
+    {
+      for (int j = 0, f = normal_x_field; j < 3; ++j, ++f)
+        memcpy(&mesh.cloud.data[main_offset + mesh.cloud.fields[f].offset], &normals[i][j], sizeof(float));
+    }
+  }
 
   double total_time = tt.toc ();
-  PCL_DEBUG ("[pcl::OBJReader::read] Loaded %s as a PolygonMesh in %g ms with %g points and %g polygons.\n",
+  PCL_DEBUG ("[pcl::OBJReader::read] Loaded %s as a PolygonMesh in %g ms with %zu points and %zu polygons.\n",
              file_name.c_str (), total_time,
-             mesh.cloud.width * mesh.cloud.height, mesh.polygons.size ());
+             static_cast<std::size_t> (mesh.cloud.width * mesh.cloud.height), mesh.polygons.size ());
   fs.close ();
   return (0);
 }
@@ -986,10 +1230,10 @@ pcl::io::saveOBJFile (const std::string &file_name,
   /* Write 3D information */
   // number of points
   unsigned nr_points  = tex_mesh.cloud.width * tex_mesh.cloud.height;
-  unsigned point_size = static_cast<unsigned> (tex_mesh.cloud.data.size () / nr_points);
+  auto point_size = static_cast<unsigned> (tex_mesh.cloud.data.size () / nr_points);
 
   // mesh size
-  unsigned nr_meshes = static_cast<unsigned> (tex_mesh.tex_polygons.size ());
+  auto nr_meshes = static_cast<unsigned> (tex_mesh.tex_polygons.size ());
   // number of faces for header
   unsigned nr_faces = 0;
   for (unsigned m = 0; m < nr_meshes; ++m)
@@ -1089,13 +1333,9 @@ pcl::io::saveOBJFile (const std::string &file_name,
     }
   }
 
-  unsigned f_idx = 0;
-
   // int idx_vt =0;
   for (unsigned m = 0; m < nr_meshes; ++m)
   {
-    if (m > 0) f_idx += static_cast<unsigned> (tex_mesh.tex_polygons[m-1].size ());
-
     fs << "# The material will be used for mesh " << m << '\n';
     fs << "usemtl " <<  tex_mesh.tex_materials[m].tex_name << '\n';
     fs << "# Faces" << '\n';
@@ -1169,9 +1409,9 @@ pcl::io::saveOBJFile (const std::string &file_name,
   // number of points
   int nr_points  = mesh.cloud.width * mesh.cloud.height;
   // point size
-  unsigned point_size = static_cast<unsigned> (mesh.cloud.data.size () / nr_points);
+  auto point_size = static_cast<unsigned> (mesh.cloud.data.size () / nr_points);
   // number of faces for header
-  unsigned nr_faces = static_cast<unsigned> (mesh.polygons.size ());
+  auto nr_faces = static_cast<unsigned> (mesh.polygons.size ());
   // Do we have vertices normals?
   int normal_index = getFieldIndex (mesh.cloud, "normal_x");
 

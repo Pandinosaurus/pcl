@@ -44,6 +44,7 @@
 #include <pcl/features/cvfh.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/common/centroid.h>
+#include <pcl/search/auto.h> // for autoSelectMethod
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 template<typename PointInT, typename PointNT, typename PointOutT> void
@@ -96,6 +97,8 @@ pcl::CVFHEstimation<PointInT, PointNT, PointOutT>::extractEuclideanClustersSmoot
               static_cast<std::size_t>(normals.size()));
     return;
   }
+  // If tree gives sorted results, we can skip the first one because it is the query point itself
+  const std::size_t nn_start_idx = tree->getSortedResults () ? 1 : 0;
 
   // Create a bool vector of processed point indices, and initialize it to false
   std::vector<bool> processed (cloud.size (), false);
@@ -124,8 +127,7 @@ pcl::CVFHEstimation<PointInT, PointNT, PointOutT>::extractEuclideanClustersSmoot
         continue;
       }
 
-      // skip index 0, since nn_indices[0] == idx, worth it?
-      for (std::size_t j = 1; j < nn_indices.size (); ++j)
+      for (std::size_t j = nn_start_idx; j < nn_indices.size (); ++j)
       {
         if (processed[nn_indices[j]]) // Has this point been processed before ?
           continue;
@@ -232,18 +234,12 @@ pcl::CVFHEstimation<PointInT, PointNT, PointOutT>::computeFeature (PointCloudOut
   if(normals_filtered_cloud->size() >= min_points_)
   {
     //recompute normals and use them for clustering
-    KdTreePtr normals_tree_filtered (new pcl::search::KdTree<pcl::PointNormal> (false));
-    normals_tree_filtered->setInputCloud (normals_filtered_cloud);
-
-
     pcl::NormalEstimation<PointNormal, PointNormal> n3d;
     n3d.setRadiusSearch (radius_normals_);
-    n3d.setSearchMethod (normals_tree_filtered);
     n3d.setInputCloud (normals_filtered_cloud);
     n3d.compute (*normals_filtered_cloud);
 
-    KdTreePtr normals_tree (new pcl::search::KdTree<pcl::PointNormal> (false));
-    normals_tree->setInputCloud (normals_filtered_cloud);
+    KdTreePtr normals_tree (pcl::search::autoSelectMethod<pcl::PointNormal>(normals_filtered_cloud, false, pcl::search::Purpose::radius_search));
 
     extractEuclideanClustersSmooth (*normals_filtered_cloud,
                                     *normals_filtered_cloud,

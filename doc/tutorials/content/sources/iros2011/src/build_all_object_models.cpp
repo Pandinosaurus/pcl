@@ -3,23 +3,23 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <pcl/common/pcl_filesystem.h>
 #include <pcl/console/parse.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
-#include <boost/filesystem.hpp>
+
 #include <boost/algorithm/string.hpp> // for split, is_any_of
-namespace bf = boost::filesystem;
 
 inline void
-getModelsInDirectory (bf::path & dir, std::string & rel_path_so_far, std::vector<std::string> & relative_paths)
+getModelsInDirectory (pcl_fs::path & dir, std::string & rel_path_so_far, std::vector<std::string> & relative_paths)
 {
-  for (const auto& dir_entry : bf::directory_iterator(dir))
+  for (const auto& dir_entry : pcl_fs::directory_iterator(dir))
   {
     //check if its a directory, then get models in it
-    if (bf::is_directory (dir_entry))
+    if (pcl_fs::is_directory (dir_entry))
     {
       std::string so_far = rel_path_so_far + dir_entry.path ().filename ().string () + "/";
-      bf::path curr_path = dir_entry.path ();
+      pcl_fs::path curr_path = dir_entry.path ();
       getModelsInDirectory (curr_path, so_far, relative_paths);
     }
     else
@@ -87,7 +87,7 @@ main (int argc, char ** argv)
   }
 
   ObjectRecognitionParameters params;
-  ifstream params_stream;
+  std::ifstream params_stream;
 
   //Parse filter parameters
   std::string filter_parameters_file;
@@ -189,22 +189,22 @@ main (int argc, char ** argv)
 
   std::string directory (argv[1]);
   //Find all raw* files in input_directory
-  bf::path dir_path = directory;
+  pcl_fs::path dir_path = directory;
   std::vector < std::string > files;
   std::string start = "";
   getModelsInDirectory (dir_path, start, files);
 
-  for(std::size_t i=0; i < files.size(); i++) {
+  for(const auto& file : files) {
     // Load input file
 
     std::string filename = directory;
     filename.append("/");
-    filename.append(files[i]);
+    filename.append(file);
     PointCloudPtr input (new PointCloud);
     pcl::io::loadPCDFile (filename, *input);
     pcl::console::print_info ("Loaded %s (%lu points)\n", filename.c_str(), input->size ());
 
-    std::cout << files[i] << std::endl;
+    std::cout << file << std::endl;
     // Construct the object model
     ObjectRecognition obj_rec (params);
     ObjectModel model;
@@ -212,7 +212,7 @@ main (int argc, char ** argv)
 
     //get directory name
     std::vector < std::string > strs;
-    boost::split (strs, files[i], boost::is_any_of ("/\\"));
+    boost::split (strs, file, boost::is_any_of ("/\\"));
 
     std::string id = strs[0];
     std::string raw_file = strs[1];

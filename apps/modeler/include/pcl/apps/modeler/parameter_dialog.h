@@ -51,7 +51,6 @@ public:
   ParameterModel(int rows, int columns, QObject* parent = nullptr)
   : QStandardItemModel(rows, columns, parent)
   {}
-  ~ParameterModel() {}
 
   Qt::ItemFlags
   flags(const QModelIndex& index) const override
@@ -65,7 +64,6 @@ class ParameterDialog : public QDialog {
   Q_OBJECT
 public:
   ParameterDialog(const std::string& title, QWidget* parent = nullptr);
-  ~ParameterDialog() {}
 
   void
   addParameter(Parameter* parameter);
@@ -75,7 +73,7 @@ public:
 
 protected:
   std::map<std::string, Parameter*> name_parameter_map_;
-  ParameterModel* parameter_model_;
+  ParameterModel* parameter_model_{nullptr};
 
 protected Q_SLOTS:
   void

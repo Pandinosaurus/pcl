@@ -47,6 +47,8 @@
 #include <boost/random/mersenne_twister.hpp> // for mt19937
 #include <boost/random/uniform_int.hpp> // for uniform_int
 #include <boost/random/variate_generator.hpp> // for variate_generator
+#include <random>
+#include <numeric> // for iota
 
 #include <pcl/memory.h>
 #include <pcl/console/print.h>
@@ -92,7 +94,7 @@ namespace pcl
       {
         // Create a random number generator object
         if (random)
-          rng_alg_.seed (static_cast<unsigned> (std::time(nullptr)));
+          rng_alg_.seed (std::random_device()());
         else
           rng_alg_.seed (12345u);
 
@@ -102,39 +104,12 @@ namespace pcl
     public:
       /** \brief Constructor for base SampleConsensusModel.
         * \param[in] cloud the input point cloud dataset
-        * \param[in] random if true set the random seed to the current time, else set to 12345 (default: false)
-        */
-      SampleConsensusModel (const PointCloudConstPtr &cloud, bool random = false) 
-        : input_ ()
-        , radius_min_ (-std::numeric_limits<double>::max ())
-        , radius_max_ (std::numeric_limits<double>::max ())
-        , samples_radius_ (0.)
-        , samples_radius_search_ ()
-        , rng_dist_ (new boost::uniform_int<> (0, std::numeric_limits<int>::max ()))
-        , custom_model_constraints_ ([](auto){return true;})
-      {
-        if (random)
-          rng_alg_.seed (static_cast<unsigned> (std::time (nullptr)));
-        else
-          rng_alg_.seed (12345u);
-
-        // Sets the input cloud and creates a vector of "fake" indices
-        setInputCloud (cloud);
-
-        // Create a random number generator object
-        rng_gen_.reset (new boost::variate_generator<boost::mt19937&, boost::uniform_int<> > (rng_alg_, *rng_dist_)); 
-      }
-
-      /** \brief Constructor for base SampleConsensusModel.
-        * \param[in] cloud the input point cloud dataset
         * \param[in] indices a vector of point indices to be used from \a cloud
         * \param[in] random if true set the random seed to the current time, else set to 12345 (default: false)
         */
-      SampleConsensusModel (const PointCloudConstPtr &cloud, 
-                            const Indices &indices,
-                            bool random = false) 
+      SampleConsensusModel (const PointCloudConstPtr &cloud, const Indices &indices, const bool random = false)
         : input_ (cloud)
-        , indices_ (new Indices (indices))
+        , indices_(new Indices(indices))
         , radius_min_ (-std::numeric_limits<double>::max ())
         , radius_max_ (std::numeric_limits<double>::max ())
         , samples_radius_ (0.)
@@ -143,9 +118,16 @@ namespace pcl
         , custom_model_constraints_ ([](auto){return true;})
       {
         if (random)
-          rng_alg_.seed (static_cast<unsigned> (std::time(nullptr)));
+          rng_alg_.seed (std::random_device()());
         else
           rng_alg_.seed (12345u);
+
+        // If no indices are provided, use all points
+        if (indices_->empty())
+        {
+          indices_->resize(cloud->size());
+          std::iota(indices_->begin(), indices_->end(), 0);
+        }
 
         if (indices_->size () > input_->size ())
         {
@@ -159,7 +141,14 @@ namespace pcl
 
         // Create a random number generator object
         rng_gen_.reset (new boost::variate_generator<boost::mt19937&, boost::uniform_int<> > (rng_alg_, *rng_dist_)); 
-       };
+      }
+
+      /** \brief Constructor for base SampleConsensusModel.
+        * \param[in] cloud the input point cloud dataset
+        * \param[in] random if true set the random seed to the current time, else set to 12345 (default: false)
+        */
+      SampleConsensusModel (const PointCloudConstPtr &cloud, const bool random = false)
+        : SampleConsensusModel(cloud, Indices(), random) {};
 
       /** \brief Destructor for base SampleConsensusModel. */
       virtual ~SampleConsensusModel () = default;
@@ -185,7 +174,7 @@ namespace pcl
 
         // Get a second point which is different than the first
         samples.resize (getSampleSize ());
-        for (unsigned int iter = 0; iter < max_sample_checks_; ++iter)
+        for (unsigned int iter = 0; iter < getMaxSampleChecks(); ++iter)
         {
           // Choose the random indices
           if (samples_radius_ < std::numeric_limits<double>::epsilon ())
@@ -200,7 +189,10 @@ namespace pcl
             return;
           }
         }
-        PCL_DEBUG ("[pcl::SampleConsensusModel::getSamples] WARNING: Could not select %d sample points in %d iterations!\n", getSampleSize (), max_sample_checks_);
+        PCL_DEBUG("[pcl::SampleConsensusModel::getSamples] WARNING: Could not select "
+                  "%d sample points in %d iterations!\n",
+                  getSampleSize(),
+                  getMaxSampleChecks());
         samples.clear ();
       }
 
@@ -358,6 +350,14 @@ namespace pcl
         return sample_size_;
       }
 
+      static unsigned int
+      getMaxSampleChecks()
+      {
+        /** The maximum number of samples to try until we get a good one */
+        static const unsigned int max_sample_checks_ = 1000;
+        return max_sample_checks_;
+      }
+
       /** \brief Return the number of coefficients in the model. */
       inline unsigned int
       getModelSize () const
@@ -472,7 +472,7 @@ namespace pcl
           // elements, that does not matter (and nowadays, random number generators are good)
           //std::swap (shuffled_indices_[i], shuffled_indices_[i + (rand () % (index_size - i))]);
           std::swap (shuffled_indices_[i], shuffled_indices_[i + (rnd () % (index_size - i))]);
-        std::copy (shuffled_indices_.begin (), shuffled_indices_.begin () + sample_size, sample.begin ());
+        std::copy (shuffled_indices_.cbegin (), shuffled_indices_.cbegin () + sample_size, sample.begin ());
       }
 
       /** \brief Fills a sample array with one random sample from the indices_ vector
@@ -513,7 +513,7 @@ namespace pcl
             shuffled_indices_[i] = indices[i-1];
         }
 
-        std::copy (shuffled_indices_.begin (), shuffled_indices_.begin () + sample_size, sample.begin ());
+        std::copy (shuffled_indices_.cbegin (), shuffled_indices_.cbegin () + sample_size, sample.begin ());
       }
 
       /** \brief Check whether a model is valid given the user constraints.
@@ -556,6 +556,7 @@ namespace pcl
       IndicesPtr indices_;
 
       /** The maximum number of samples to try until we get a good one */
+      PCL_DEPRECATED(1, 18, "Use getMaxSampleChecks() instead.")
       static const unsigned int max_sample_checks_ = 1000;
 
       /** \brief The minimum and maximum radius limits for the model.
@@ -618,7 +619,7 @@ namespace pcl
       using ConstPtr = shared_ptr<const SampleConsensusModelFromNormals<PointT, PointNT> >;
 
       /** \brief Empty constructor for base SampleConsensusModelFromNormals. */
-      SampleConsensusModelFromNormals () : normal_distance_weight_ (0.0), normals_ () {};
+      SampleConsensusModelFromNormals () :  normals_ () {};
 
       /** \brief Destructor. */
       virtual ~SampleConsensusModelFromNormals () = default;
@@ -662,7 +663,7 @@ namespace pcl
       /** \brief The relative weight (between 0 and 1) to give to the angular
         * distance (0 to pi/2) between point normals and the plane normal. 
         */
-      double normal_distance_weight_;
+      double normal_distance_weight_{0.0};
 
       /** \brief A pointer to the input dataset that contains the point normals
         * of the XYZ dataset. 

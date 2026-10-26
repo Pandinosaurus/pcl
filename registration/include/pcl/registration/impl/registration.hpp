@@ -40,6 +40,8 @@
 
 #pragma once
 
+#include <pcl/search/auto.h>
+
 namespace pcl {
 
 template <typename PointSource, typename PointTarget, typename Scalar>
@@ -82,7 +84,19 @@ Registration<PointSource, PointTarget, Scalar>::initCompute()
 
   // Only update target kd-tree if a new target cloud was set
   if (target_cloud_updated_ && !force_no_recompute_) {
-    tree_->setInputCloud(target_);
+    if (point_representation_) {
+      if (!tree_ || !tree_->setPointRepresentation(point_representation_) ||
+          !tree_->setInputCloud(target_))
+        tree_.reset(pcl::search::autoSelectMethod<PointTarget>(
+            target_,
+            pcl::IndicesConstPtr(),
+            point_representation_,
+            false,
+            pcl::search::Purpose::one_knn_search));
+    }
+    else if (!tree_ || !tree_->setInputCloud(target_))
+      tree_.reset(pcl::search::autoSelectMethod<PointTarget>(
+          target_, false, pcl::search::Purpose::one_knn_search));
     target_cloud_updated_ = false;
   }
 
@@ -111,7 +125,8 @@ Registration<PointSource, PointTarget, Scalar>::initComputeReciprocal()
   }
 
   if (source_cloud_updated_ && !force_no_recompute_reciprocal_) {
-    tree_reciprocal_->setInputCloud(input_);
+    if (!tree_reciprocal_ || !tree_reciprocal_->setInputCloud(input_))
+      tree_reciprocal_.reset(pcl::search::autoSelectMethod<PointSource>(input_, false));
     source_cloud_updated_ = false;
   }
   return (true);
@@ -124,20 +139,24 @@ Registration<PointSource, PointTarget, Scalar>::getFitnessScore(
 {
   unsigned int nr_elem =
       static_cast<unsigned int>(std::min(distances_a.size(), distances_b.size()));
-  Eigen::VectorXf map_a = Eigen::VectorXf::Map(&distances_a[0], nr_elem);
-  Eigen::VectorXf map_b = Eigen::VectorXf::Map(&distances_b[0], nr_elem);
+  Eigen::VectorXf map_a = Eigen::VectorXf::Map(distances_a.data(), nr_elem);
+  Eigen::VectorXf map_b = Eigen::VectorXf::Map(distances_b.data(), nr_elem);
   return (static_cast<double>((map_a - map_b).sum()) / static_cast<double>(nr_elem));
 }
 
 template <typename PointSource, typename PointTarget, typename Scalar>
 inline double
-Registration<PointSource, PointTarget, Scalar>::getFitnessScore(double max_range)
+Registration<PointSource, PointTarget, Scalar>::getFitnessScore(double max_range,
+                                                                bool use_indices)
 {
   double fitness_score = 0.0;
 
   // Transform the input dataset using the final transformation
   PointCloudSource input_transformed;
-  transformPointCloud(*input_, input_transformed, final_transformation_);
+  if (use_indices && indices_ && indices_->size() != input_->size())
+    transformPointCloud(*input_, *indices_, input_transformed, final_transformation_);
+  else
+    transformPointCloud(*input_, input_transformed, final_transformation_);
 
   pcl::Indices nn_indices(1);
   std::vector<float> nn_dists(1);
@@ -145,8 +164,10 @@ Registration<PointSource, PointTarget, Scalar>::getFitnessScore(double max_range
   // For each point in the source dataset
   int nr = 0;
   for (const auto& point : input_transformed) {
+    if (!input_->is_dense && !pcl::isXYZFinite(point))
+      continue;
     // Find its nearest neighbor in the target
-    tree_->nearestKSearch(point, 1, nn_indices, nn_dists);
+    tree_->nearestKSearchT(point, 1, nn_indices, nn_dists);
 
     // Deal with occlusions (incomplete targets)
     if (nn_dists[0] <= max_range) {
@@ -194,10 +215,6 @@ Registration<PointSource, PointTarget, Scalar>::align(PointCloudSource& output,
   // Copy the point data to output
   for (std::size_t i = 0; i < indices_->size(); ++i)
     output[i] = (*input_)[(*indices_)[i]];
-
-  // Set the internal point representation of choice unless otherwise noted
-  if (point_representation_ && !force_no_recompute_)
-    tree_->setPointRepresentation(point_representation_);
 
   // Perform the actual transformation computation
   converged_ = false;

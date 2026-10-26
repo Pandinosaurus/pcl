@@ -56,6 +56,7 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/impl/centroid.hpp> // TODO: PointIHS is not registered
 
+#include <QApplication>
 #include <QtOpenGL>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,21 +102,12 @@ pcl::ihs::detail::FaceVertexMesh::FaceVertexMesh(const Mesh& mesh,
 ////////////////////////////////////////////////////////////////////////////////
 
 pcl::ihs::OpenGLViewer::OpenGLViewer(QWidget* parent)
-: QGLWidget(parent)
+: QOpenGLWidget(parent)
 , timer_vis_(new QTimer(this))
 , colormap_(Colormap::Constant(255))
-, vis_conf_norm_(1)
-, mesh_representation_(MR_POINTS)
-, coloring_(COL_RGB)
-, draw_box_(false)
-, scaling_factor_(1.)
 , R_cam_(1., 0., 0., 0.)
 , t_cam_(0., 0., 0.)
 , cam_pivot_(0., 0., 0.)
-, cam_pivot_id_("")
-, mouse_pressed_begin_(false)
-, x_prev_(0)
-, y_prev_(0)
 {
   // Timer: Defines the update rate for the visualization
   connect(timer_vis_.get(), SIGNAL(timeout()), this, SLOT(timerCallback()));
@@ -484,7 +476,7 @@ pcl::ihs::OpenGLViewer::addMesh(const CloudXYZRGBNormalConstPtr& cloud,
   const int h = cloud->height;
   const int offset_1 = -w;
   const int offset_2 = -w - 1;
-  const int offset_3 = -1;
+  constexpr int offset_3 = -1;
 
   FaceVertexMeshPtr mesh(new FaceVertexMesh());
   mesh->transformation = T;
@@ -659,7 +651,7 @@ pcl::ihs::OpenGLViewer::setVisibilityConfidenceNormalization(const float vis_con
 QSize
 pcl::ihs::OpenGLViewer::minimumSizeHint() const
 {
-  return (QSize(160, 120));
+  return {160, 120};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -667,7 +659,7 @@ pcl::ihs::OpenGLViewer::minimumSizeHint() const
 QSize
 pcl::ihs::OpenGLViewer::sizeHint() const
 {
-  return (QSize(640, 480));
+  return {640, 480};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -949,11 +941,9 @@ pcl::ihs::OpenGLViewer::drawMeshes()
     exit(EXIT_FAILURE);
   }
 
-  for (FaceVertexMeshMap::const_iterator it = drawn_meshes_.begin();
-       it != drawn_meshes_.end();
-       ++it) {
-    if (it->second && !it->second->vertices.empty()) {
-      const FaceVertexMesh& mesh = *it->second;
+  for (const auto& drawn_mesh : drawn_meshes_) {
+    if (drawn_mesh.second && !drawn_mesh.second->vertices.empty()) {
+      const FaceVertexMesh& mesh = *drawn_mesh.second;
 
       glVertexPointer(3, GL_FLOAT, sizeof(PointIHS), &(mesh.vertices[0].x));
       glNormalPointer(GL_FLOAT, sizeof(PointIHS), &(mesh.vertices[0].normal_x));
@@ -972,7 +962,7 @@ pcl::ihs::OpenGLViewer::drawMeshes()
       case COL_VISCONF: {
         for (std::size_t i = 0; i < mesh.vertices.size(); ++i) {
           const unsigned int n = pcl::ihs::countDirections(mesh.vertices[i].directions);
-          const unsigned int index =
+          const auto index =
               static_cast<unsigned int>(static_cast<float>(colormap_.cols()) *
                                         static_cast<float>(n) / vis_conf_norm_);
 
@@ -997,7 +987,7 @@ pcl::ihs::OpenGLViewer::drawMeshes()
           glDrawElements(GL_TRIANGLES,
                          3 * mesh.triangles.size(),
                          GL_UNSIGNED_INT,
-                         &mesh.triangles[0]);
+                         mesh.triangles.data());
           break;
         }
         }
@@ -1085,7 +1075,7 @@ pcl::ihs::OpenGLViewer::initializeGL()
 void
 pcl::ihs::OpenGLViewer::setupViewport(const int w, const int h)
 {
-  const float aspect_ratio = 4. / 3.;
+  constexpr float aspect_ratio = 4. / 3.;
 
   // Use the biggest possible area of the window to draw to
   //    case 1 (w < w_scaled):        case 2 (w >= w_scaled):
@@ -1197,8 +1187,8 @@ pcl::ihs::OpenGLViewer::wheelEvent(QWheelEvent* event)
         std::max((cam_pivot_ - R_cam_ * o - t_cam_).norm(), .1 / scaling_factor_) / d;
 
     // http://doc.qt.digia.com/qt/qwheelevent.html#delta
-    t_cam_ +=
-        scale * Eigen::Vector3d(R_cam_ * (ez * static_cast<double>(event->delta())));
+    t_cam_ += scale * Eigen::Vector3d(
+                          R_cam_ * (ez * static_cast<double>(event->angleDelta().y())));
   }
 }
 

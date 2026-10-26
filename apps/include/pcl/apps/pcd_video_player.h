@@ -35,14 +35,13 @@
  */
 
 #include <pcl/common/common.h>
+#include <pcl/common/pcl_filesystem.h>
 #include <pcl/common/time.h>
 #include <pcl/registration/transformation_estimation_svd.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/visualization/point_cloud_handlers.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-
-#include <boost/filesystem.hpp>
 
 #include <QMainWindow>
 #include <QMutex>
@@ -62,7 +61,7 @@
     double now = pcl::getTime();                                                       \
     ++count;                                                                           \
     if (now - last >= 1.0) {                                                           \
-      std::cout << "Average framerate(" << _WHAT_ << "): "                             \
+      std::cout << "Average framerate(" << (_WHAT_) << "): "                             \
                 << double(count) / double(now - last) << " Hz" << std::endl;           \
       count = 0;                                                                       \
       last = now;                                                                      \
@@ -83,7 +82,7 @@ public:
 
   PCDVideoPlayer();
 
-  ~PCDVideoPlayer() {}
+  ~PCDVideoPlayer() override = default;
 
 protected:
   void
@@ -100,7 +99,7 @@ protected:
   QString dir_;
 
   std::vector<std::string> pcd_files_;
-  std::vector<boost::filesystem::path> pcd_paths_;
+  std::vector<pcl_fs::path> pcd_paths_;
 
   /** \brief The current displayed frame */
   unsigned int current_frame_;

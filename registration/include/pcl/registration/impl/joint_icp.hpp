@@ -62,10 +62,6 @@ JointIterativeClosestPoint<PointSource, PointTarget, Scalar>::computeTransformat
     correspondence_estimations_.resize(sources_.size());
     for (std::size_t i = 0; i < sources_.size(); i++) {
       correspondence_estimations_[i] = correspondence_estimation_->clone();
-      KdTreeReciprocalPtr src_tree(new KdTreeReciprocal);
-      KdTreePtr tgt_tree(new KdTree);
-      correspondence_estimations_[i]->setSearchMethodTarget(tgt_tree);
-      correspondence_estimations_[i]->setSearchMethodSource(src_tree);
     }
   }
   if (correspondence_estimations_.size() != sources_.size()) {
@@ -244,7 +240,7 @@ JointIterativeClosestPoint<PointSource, PointTarget, Scalar>::computeTransformat
 
     ++nr_iterations_;
 
-    // Update the vizualization of icp convergence
+    // Update the visualization of icp convergence
     // if (update_visualizer_ != 0)
     //  update_visualizer_(output, source_indices_good, *target_, target_indices_good );
 

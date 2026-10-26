@@ -42,11 +42,12 @@
 #include <memory>
 #include <mutex>
 #include <random>
+#include <list>
 
 #include <pcl/common/io.h>
 #include <pcl/PCLPointCloud2.h>
+#include <pcl/point_types.h>     // for pcl::PointXYZ
 
-#include <pcl/outofcore/boost.h>
 #include <pcl/outofcore/octree_base.h>
 #include <pcl/outofcore/octree_disk_container.h>
 #include <pcl/outofcore/outofcore_node_data.h>
@@ -161,8 +162,15 @@ namespace pcl
         void
         queryFrustum (const double planes[24], std::list<std::string>& file_names, const std::uint32_t query_depth, const bool skip_vfc_check = false);
 
+        /** \warning This function is only available if the visualization module is available and the preprocessor symbol `PCL_VISUALIZATION_AVAILABLE` is defined.
+         */
+#ifdef PCL_VISUALIZATION_AVAILABLE
         void
         queryFrustum (const double planes[24], const Eigen::Vector3d &eye, const Eigen::Matrix4d &view_projection_matrix, std::list<std::string>& file_names, const std::uint32_t query_depth, const bool skip_vfc_check = false);
+#else
+        void
+        queryFrustum (const double planes[24], const Eigen::Vector3d &eye, const Eigen::Matrix4d &view_projection_matrix, std::list<std::string>& file_names, const std::uint32_t query_depth, const bool skip_vfc_check = false) = delete;
+#endif
 
         //point extraction
         /** \brief Recursively add points that fall into the queried bounding box up to the \b query_depth 
@@ -282,7 +290,7 @@ namespace pcl
           return (res);
         }
 
-        /** \brief Count loaded chilren */
+        /** \brief Count loaded children */
         virtual std::size_t
         getNumLoadedChildren ()  const
         {
@@ -347,8 +355,8 @@ namespace pcl
         virtual std::size_t
         countNumChildren () const;
 
-        /** \brief Counts the number of loaded chilren by testing the \c children_ array; 
-         *  used to update num_loaded_chilren_ internally 
+        /** \brief Counts the number of loaded children by testing the \c children_ array; 
+         *  used to update num_loaded_children_ internally 
          */
         virtual std::size_t
         countNumLoadedChildren () const;

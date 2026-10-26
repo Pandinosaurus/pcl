@@ -44,7 +44,7 @@
 #include <pcl/registration/correspondence_estimation.h>
 #include <pcl/registration/correspondence_rejection.h>
 #include <pcl/registration/transformation_estimation.h>
-#include <pcl/search/kdtree.h>
+#include <pcl/search/search.h>
 #include <pcl/memory.h>
 #include <pcl/pcl_base.h>
 #include <pcl/pcl_macros.h>
@@ -67,10 +67,10 @@ public:
   using ConstPtr = shared_ptr<const Registration<PointSource, PointTarget, Scalar>>;
 
   using CorrespondenceRejectorPtr = pcl::registration::CorrespondenceRejector::Ptr;
-  using KdTree = pcl::search::KdTree<PointTarget>;
+  using KdTree = pcl::search::Search<PointTarget>;
   using KdTreePtr = typename KdTree::Ptr;
 
-  using KdTreeReciprocal = pcl::search::KdTree<PointSource>;
+  using KdTreeReciprocal = pcl::search::Search<PointSource>;
   using KdTreeReciprocalPtr = typename KdTreeReciprocal::Ptr;
 
   using PointCloudSource = pcl::PointCloud<PointSource>;
@@ -81,7 +81,8 @@ public:
   using PointCloudTargetPtr = typename PointCloudTarget::Ptr;
   using PointCloudTargetConstPtr = typename PointCloudTarget::ConstPtr;
 
-  using PointRepresentationConstPtr = typename KdTree::PointRepresentationConstPtr;
+  using PointRepresentationConstPtr =
+      typename PointRepresentation<PointTarget>::ConstPtr;
 
   using TransformationEstimation = typename pcl::registration::
       TransformationEstimation<PointSource, PointTarget, Scalar>;
@@ -107,29 +108,15 @@ public:
 
   /** \brief Empty constructor. */
   Registration()
-  : tree_(new KdTree)
-  , tree_reciprocal_(new KdTreeReciprocal)
-  , nr_iterations_(0)
-  , max_iterations_(10)
-  , ransac_iterations_(0)
-  , target_()
+  : target_()
   , final_transformation_(Matrix4::Identity())
   , transformation_(Matrix4::Identity())
   , previous_transformation_(Matrix4::Identity())
-  , transformation_epsilon_(0.0)
-  , transformation_rotation_epsilon_(0.0)
   , euclidean_fitness_epsilon_(-std::numeric_limits<double>::max())
   , corr_dist_threshold_(std::sqrt(std::numeric_limits<double>::max()))
-  , inlier_threshold_(0.05)
-  , converged_(false)
-  , min_number_correspondences_(3)
   , correspondences_(new Correspondences)
   , transformation_estimation_()
   , correspondence_estimation_()
-  , target_cloud_updated_(true)
-  , source_cloud_updated_(true)
-  , force_no_recompute_(false)
-  , force_no_recompute_reciprocal_(false)
   , point_representation_()
   {}
 
@@ -456,9 +443,12 @@ public:
   /** \brief Obtain the Euclidean fitness score (e.g., mean of squared distances from
    * the source to the target) \param[in] max_range maximum allowable distance between a
    * point and its correspondence in the target (default: double::max)
+   * \param[in] use_indices whether to use the registered indices or all points
+   * (default: false)
    */
   inline double
-  getFitnessScore(double max_range = std::numeric_limits<double>::max());
+  getFitnessScore(double max_range = std::numeric_limits<double>::max(),
+                  bool use_indices = false);
 
   /** \brief Obtain the Euclidean fitness score (e.g., mean of squared distances from
    * the source to the target) from two sets of correspondence distances (distances
@@ -567,15 +557,15 @@ protected:
 
   /** \brief The number of iterations the internal optimization ran for (used
    * internally). */
-  int nr_iterations_;
+  int nr_iterations_{0};
 
   /** \brief The maximum number of iterations the internal optimization should run for.
    * The default value is 10.
    */
-  int max_iterations_;
+  int max_iterations_{10};
 
   /** \brief The number of iterations RANSAC should run for. */
-  int ransac_iterations_;
+  int ransac_iterations_{0};
 
   /** \brief The input point cloud dataset target. */
   PointCloudTargetConstPtr target_;
@@ -594,12 +584,12 @@ protected:
   /** \brief The maximum difference between two consecutive transformations in order to
    * consider convergence (user defined).
    */
-  double transformation_epsilon_;
+  double transformation_epsilon_{0.0};
 
   /** \brief The maximum rotation difference between two consecutive transformations in
    * order to consider convergence (user defined).
    */
-  double transformation_rotation_epsilon_;
+  double transformation_rotation_epsilon_{0.0};
 
   /** \brief The maximum allowed Euclidean error between two consecutive steps in the
    * ICP loop, before the algorithm is considered to have converged. The error is
@@ -619,15 +609,15 @@ protected:
    * target data index and the transformed source index is smaller than the given inlier
    * distance threshold. The default value is 0.05.
    */
-  double inlier_threshold_;
+  double inlier_threshold_{0.05};
 
   /** \brief Holds internal convergence state, given user parameters. */
-  bool converged_;
+  bool converged_{false};
 
   /** \brief The minimum number of correspondences that the algorithm needs before
    * attempting to estimate the transformation. The default value is 3.
    */
-  unsigned int min_number_correspondences_;
+  unsigned int min_number_correspondences_{3};
 
   /** \brief The set of correspondences determined at this ICP step. */
   CorrespondencesPtr correspondences_;
@@ -646,18 +636,18 @@ protected:
   /** \brief Variable that stores whether we have a new target cloud, meaning we need to
    * pre-process it again. This way, we avoid rebuilding the kd-tree for the target
    * cloud every time the determineCorrespondences () method is called. */
-  bool target_cloud_updated_;
+  bool target_cloud_updated_{true};
   /** \brief Variable that stores whether we have a new source cloud, meaning we need to
    * pre-process it again. This way, we avoid rebuilding the reciprocal kd-tree for the
    * source cloud every time the determineCorrespondences () method is called. */
-  bool source_cloud_updated_;
+  bool source_cloud_updated_{true};
   /** \brief A flag which, if set, means the tree operating on the target cloud
    * will never be recomputed*/
-  bool force_no_recompute_;
+  bool force_no_recompute_{false};
 
   /** \brief A flag which, if set, means the tree operating on the source cloud
    * will never be recomputed*/
-  bool force_no_recompute_reciprocal_;
+  bool force_no_recompute_reciprocal_{false};
 
   /** \brief Callback function to update intermediate source point cloud position during
    * it's registration to the target point cloud.
@@ -677,7 +667,7 @@ protected:
                      pcl::Indices& indices,
                      std::vector<float>& distances)
   {
-    int k = tree_->nearestKSearch(cloud, index, 1, indices, distances);
+    int k = tree_->nearestKSearchT(cloud[index], 1, indices, distances);
     if (k == 0)
       return (false);
     return (true);

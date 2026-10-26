@@ -33,12 +33,10 @@ public:
 
   using KeyIndex = std::list<KeyT>;
   using KeyIndexIterator = typename KeyIndex::iterator;
-
   using Cache = std::map<KeyT, std::pair<CacheItemT, typename KeyIndex::iterator> >;
-  using CacheIterator = typename Cache::iterator;
 
   LRUCache (std::size_t c) :
-      capacity_ (c), size_ (0)
+      capacity_ (c)
   {
     assert(capacity_ != 0);
   }
@@ -53,7 +51,7 @@ public:
   get (const KeyT& k)
   {
     // Get existing key
-    const CacheIterator it = cache_.find (k);
+    const auto it = cache_.find (k);
     assert(it != cache_.end ());
 
     // Move key to MRU key index
@@ -67,7 +65,7 @@ public:
   touch (const KeyT& key)
   {
     // Get existing key
-    const CacheIterator it = cache_.find (key);
+    const auto it = cache_.find (key);
     assert(it != cache_.end ());
 
     // Move key to MRU key index
@@ -89,11 +87,11 @@ public:
     int evict_count = 0;
 
     // Get LRU key iterator
-    KeyIndexIterator key_it = key_index_.begin ();
+    auto key_it = key_index_.begin ();
 
     while (size + item_size >= capacity_)
     {
-      const CacheIterator cache_it = cache_.find (*key_it);
+      const auto cache_it = cache_.find (*key_it);
 
       // Get tail item (Least Recently Used)
       std::size_t tail_timestamp = cache_it->second.first.timestamp;
@@ -116,7 +114,7 @@ public:
     size_ += item_size;
 
     // Insert most-recently-used key at the end of our key index
-    KeyIndexIterator it = key_index_.insert (key_index_.end (), key);
+    auto it = key_index_.insert (key_index_.end (), key);
 
     // Add to cache
     cache_.insert (std::make_pair (key, std::make_pair (value, it)));
@@ -133,7 +131,7 @@ public:
   CacheItemT&
   tailItem ()
   {
-    const CacheIterator it = cache_.find (key_index_.front ());
+    const auto it = cache_.find (key_index_.front ());
     return it->second.first;
   }
 
@@ -153,7 +151,7 @@ public:
         return false;
 
       // Get LRU item
-      const CacheIterator it = cache_.find (key_index_.front ());
+      const auto it = cache_.find (key_index_.front ());
       assert(it != cache_.end());
 
       // Remove LRU item from cache and key index
@@ -169,7 +167,7 @@ public:
   std::size_t capacity_;
 
   // Current cache size in kilobytes
-  std::size_t size_;
+  std::size_t size_{0};
 
   // LRU key index LRU[0] ... MRU[N]
   KeyIndex key_index_;

@@ -36,14 +36,16 @@
  */
 
 #include <pcl/PCLPointCloud2.h>
+#include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_plane.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/common/pcl_filesystem.h>
 #include <pcl/console/print.h>
 #include <pcl/console/parse.h>
 #include <pcl/console/time.h>
-#include <boost/filesystem.hpp> // for path, exists, ...
+
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper_copy
 
 using namespace pcl;
@@ -108,11 +110,9 @@ compute (const pcl::PCLPointCloud2::ConstPtr &input, pcl::PCLPointCloud2 &output
   RandomSampleConsensus<PointXYZ> sac (model, threshold);
   sac.setMaxIterations (max_iterations);
   bool res = sac.computeModel ();
-  
-  pcl::Indices inliers;
-  sac.getInliers (inliers);
-  Eigen::VectorXf coefficients;
-  sac.getModelCoefficients (coefficients);
+
+  auto inliers = sac.getInliers ();
+  Eigen::VectorXf coefficients = sac.getModelCoefficients ();
 
   if (!res || inliers.empty ())
   {
@@ -120,8 +120,8 @@ compute (const pcl::PCLPointCloud2::ConstPtr &input, pcl::PCLPointCloud2 &output
     return;
   }
   sac.refineModel (2, 50);
-  sac.getInliers (inliers);
-  sac.getModelCoefficients (coefficients);
+  inliers = sac.getInliers ();
+  coefficients = sac.getModelCoefficients ();
 
   print_info ("[done, "); print_value ("%g", tt.toc ()); print_info (" ms, plane has : "); print_value ("%lu", inliers.size ()); print_info (" points]\n");
 
@@ -179,7 +179,6 @@ saveCloud (const std::string &filename, const pcl::PCLPointCloud2 &output)
 int
 batchProcess (const std::vector<std::string> &pcd_files, std::string &output_dir, int max_it, double thresh, bool negative)
 {
-  std::vector<std::string> st;
   for (const auto &pcd_file : pcd_files)
   {
     // Load the first file
@@ -192,7 +191,7 @@ batchProcess (const std::vector<std::string> &pcd_files, std::string &output_dir
     compute (cloud, output, max_it, thresh, negative);
 
     // Prepare output file name
-    std::string filename = boost::filesystem::path(pcd_file).filename().string();
+    std::string filename = pcl_fs::path(pcd_file).filename().string();
     
     // Save into the second file
     const std::string filepath = output_dir + '/' + filename;
@@ -277,14 +276,14 @@ main (int argc, char** argv)
   }
   else
   {
-    if (!input_dir.empty() && boost::filesystem::exists (input_dir))
+    if (!input_dir.empty() && pcl_fs::exists (input_dir))
     {
       std::vector<std::string> pcd_files;
-      boost::filesystem::directory_iterator end_itr;
-      for (boost::filesystem::directory_iterator itr (input_dir); itr != end_itr; ++itr)
+      pcl_fs::directory_iterator end_itr;
+      for (pcl_fs::directory_iterator itr (input_dir); itr != end_itr; ++itr)
       {
         // Only add PCD files
-        if (!is_directory (itr->status ()) && boost::algorithm::to_upper_copy (boost::filesystem::extension (itr->path ())) == ".PCD" )
+        if (!is_directory (itr->status ()) && boost::algorithm::to_upper_copy (itr->path ().extension ().string ()) == ".PCD" )
         {
           pcd_files.push_back (itr->path ().string ());
           PCL_INFO ("[Batch processing mode] Added %s for processing.\n", itr->path ().string ().c_str ());

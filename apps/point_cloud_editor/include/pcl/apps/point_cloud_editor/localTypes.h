@@ -39,11 +39,11 @@
 
 #pragma once
 
-#include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 // Forward declaration for commonly used objects
 class Command;
@@ -105,44 +105,26 @@ using CommandQueuePtr = std::shared_ptr<CommandQueue>;
 using BitMask = unsigned int;
 
 /// ID's for the key modifiers.
-enum KeyModifier
-{
+enum KeyModifier {
   NONE = 0x00000000,
   SHFT = 0x02000000,
   CTRL = 0x04000000,
-  ALT  = 0x08000000
+  ALT = 0x08000000
 };
 
 /// ID's for the mouse buttons.
-enum MouseButton
-{
-  NOBUTTON,
-  LEFT,
-  RIGHT
-};
+enum MouseButton { NOBUTTON, LEFT, RIGHT };
 
 /// Indices for the coordinate axes
 /// It is assumed that the ColorScheme X,Y,Z match these values
-enum Axis
-{
-  X,
-  Y,
-  Z
-};
+enum Axis { X, Y, Z };
 
 /// Indices for color components
-enum Color
-{
-  RED,
-  GREEN,
-  BLUE,
-  RGB
-};
+enum Color { RED, GREEN, BLUE, RGB };
 
 /// Scheme used for coloring the whole cloud.
 /// It is assumed that the Axiz X,Y,Z match the COLOR_BY_[X,Y,Z] values
-enum ColorScheme
-{
+enum ColorScheme {
   COLOR_BY_X = 0,
   COLOR_BY_Y,
   COLOR_BY_Z,
@@ -151,14 +133,11 @@ enum ColorScheme
 };
 
 /// Simple functor that produces sequential integers from an initial value
-struct IncIndex
-{
+struct IncIndex {
   unsigned int val_;
-  IncIndex(int v=0)
-  {
-    val_ = v;
-  }
-  unsigned int operator()()
+  IncIndex(int v = 0) { val_ = v; }
+  unsigned int
+  operator()()
   {
     return (val_++);
   }
@@ -167,25 +146,25 @@ struct IncIndex
 /// A helpful const representing the number of elements in our vectors.
 /// This is used for all operations that require the copying of the vector.
 /// Although this is used in a fairly generic way, the display requires 3D.
-const unsigned int XYZ_SIZE = 3;
+constexpr unsigned int XYZ_SIZE = 3;
 
 /// A helpful const representing the number of elements in each row/col in
 /// our matrices. This is used for all operations that require the copying of
 /// the matrix.
-const unsigned int MATRIX_SIZE_DIM = 4;
+constexpr unsigned int MATRIX_SIZE_DIM = 4;
 
 /// A helpful const representing the number of elements in our matrices.
 /// This is used for all operations that require the copying of the matrix.
-const unsigned int MATRIX_SIZE = MATRIX_SIZE_DIM * MATRIX_SIZE_DIM;
+constexpr unsigned int MATRIX_SIZE = MATRIX_SIZE_DIM * MATRIX_SIZE_DIM;
 
 /// The default window width
-const unsigned int WINDOW_WIDTH = 1200;
+constexpr unsigned int WINDOW_WIDTH = 1200;
 /// The default window height
-const unsigned int WINDOW_HEIGHT = 1000;
+constexpr unsigned int WINDOW_HEIGHT = 1000;
 
 /// The default z translation used to push the world origin in front of the
 /// display
-const float DISPLAY_Z_TRANSLATION = -2.0f;
+constexpr float DISPLAY_Z_TRANSLATION = -2.0f;
 
 /// The radius of the trackball given as a percentage of the screen width
-const float TRACKBALL_RADIUS_SCALE = 0.4f;
+constexpr float TRACKBALL_RADIUS_SCALE = 0.4f;

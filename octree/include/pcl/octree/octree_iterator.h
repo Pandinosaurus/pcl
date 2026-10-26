@@ -57,9 +57,13 @@ namespace octree {
 
 // Octree iterator state pushed on stack/list
 struct IteratorState {
-  OctreeNode* node_;
-  OctreeKey key_;
-  uindex_t depth_;
+  OctreeNode* node_{nullptr};
+  OctreeKey key_{};
+  uindex_t depth_{0};
+  IteratorState() = default;
+  IteratorState(OctreeNode* node, const OctreeKey& key, uindex_t depth)
+  : node_(node), key_(key), depth_(depth)
+  {}
 };
 
 /** \brief @b Abstract octree iterator class
@@ -127,7 +131,7 @@ public:
   {}
 
   /** \brief Empty deconstructor. */
-  virtual ~OctreeIteratorBase() {}
+  virtual ~OctreeIteratorBase() = default;
 
   /** \brief Equal comparison operator
    * \param[in] other OctreeIteratorBase to compare with
@@ -166,6 +170,12 @@ public:
       max_octree_depth_ = octree_->getTreeDepth();
     }
   }
+
+  /** \brief Preincrement operator.
+   * \note step to next octree node
+   */
+  virtual OctreeIteratorBase&
+  operator++() = 0;
 
   /** \brief Get octree key for the current iterator octree node
    * \return octree key of current node
@@ -230,7 +240,7 @@ public:
   /** \brief *operator.
    * \return pointer to the current octree node
    */
-  inline OctreeNode*
+  virtual OctreeNode*
   operator*() const
   { // return designated object
     if (octree_ && current_state_) {
@@ -391,6 +401,7 @@ public:
    * root node.
    * \param[in] max_depth_arg Depth limitation during traversal
    * \param[in] current_state A pointer to the current iterator state
+   * \param[in] stack A stack structure used for depth first search
    *
    *  \warning For advanced users only.
    */
@@ -429,7 +440,7 @@ public:
       this->current_state_ = 0;
     }
 
-    return (*this);
+    return *this;
   }
 
   /** \brief Reset the iterator to the root node of the octree
@@ -533,7 +544,7 @@ public:
       this->current_state_ = 0;
     }
 
-    return (*this);
+    return *this;
   }
 
   /** \brief Reset the iterator to the root node of the octree
@@ -626,7 +637,7 @@ public:
     OctreeBreadthFirstIterator<OctreeT>::operator=(src);
     this->fixed_depth_ = src.fixed_depth_;
 
-    return (*this);
+    return *this;
   }
 
   /** \brief Reset the iterator to the first node at the depth given as parameter
@@ -721,7 +732,7 @@ public:
     } while ((this->current_state_) &&
              (this->current_state_->node_->getNodeType() != LEAF_NODE));
 
-    return (*this);
+    return *this;
   }
 
   /** \brief postincrement operator.
@@ -739,7 +750,7 @@ public:
    * \return pointer to the current octree leaf node
    */
   OctreeNode*
-  operator*() const
+  operator*() const override
   {
     // return designated object
     OctreeNode* ret = 0;
@@ -810,6 +821,21 @@ public:
    */
   inline OctreeLeafNodeBreadthFirstIterator
   operator++(int);
+
+  /** \brief *operator.
+   * \return pointer to the current octree leaf node
+   */
+  OctreeNode*
+  operator*() const override
+  {
+    // return designated object
+    OctreeNode* ret = 0;
+
+    if (this->current_state_ &&
+        (this->current_state_->node_->getNodeType() == LEAF_NODE))
+      ret = this->current_state_->node_;
+    return (ret);
+  }
 };
 
 } // namespace octree

@@ -20,7 +20,7 @@ pcl::rec_3d_framework::LocalRecognitionPipeline<Distance, PointInT, FeatureT>::
     std::string path =
         source_->getModelDescriptorDir(models->at(i), training_dir_, descr_name_);
 
-    for (const auto& dir_entry : bf::directory_iterator(path)) {
+    for (const auto& dir_entry : pcl_fs::directory_iterator(path)) {
       std::string file_name = (dir_entry.path().filename()).string();
 
       std::vector<std::string> strs;
@@ -150,9 +150,9 @@ pcl::rec_3d_framework::LocalRecognitionPipeline<Distance, PointInT, FeatureT>::
           std::string path =
               source_->getModelDescriptorDir(models->at(i), training_dir_, descr_name_);
 
-          bf::path desc_dir = path;
-          if (!bf::exists(desc_dir))
-            bf::create_directory(desc_dir);
+          pcl_fs::path desc_dir = path;
+          if (!pcl_fs::exists(desc_dir))
+            pcl_fs::create_directory(desc_dir);
 
           const std::string path_view = path = "/view_" + std::to_string(v) + ".pcd";
           pcl::io::savePCDFileBinary(path_view, *processed);
@@ -293,6 +293,8 @@ pcl::rec_3d_framework::LocalRecognitionPipeline<Distance, PointInT, FeatureT>::
         oh.feature_distances_ = feat_dist;
         object_hypotheses[oh.model_.id_] = oh;
       }
+      delete[] indices.ptr();
+      delete[] distances.ptr();
     }
   }
 
@@ -369,7 +371,6 @@ pcl::rec_3d_framework::LocalRecognitionPipeline<Distance, PointInT, FeatureT>::
 
     // clang-format off
 #pragma omp parallel for \
-  default(none) \
   shared(cloud_voxelized_icp) \
   schedule(dynamic,1) \
   num_threads(omp_get_num_procs())
@@ -459,11 +460,7 @@ pcl::rec_3d_framework::LocalRecognitionPipeline<Distance, PointInT, FeatureT>::g
     using mv_pair = std::pair<std::string, int>;
     mv_pair pair_model_view = std::make_pair(model.id_, view_id);
 
-    std::map<mv_pair,
-             Eigen::Matrix4f,
-             std::less<>,
-             Eigen::aligned_allocator<std::pair<const mv_pair, Eigen::Matrix4f>>>::
-        iterator it = poses_cache_.find(pair_model_view);
+    auto it = poses_cache_.find(pair_model_view);
 
     if (it != poses_cache_.end()) {
       pose_matrix = it->second;
@@ -488,8 +485,7 @@ pcl::rec_3d_framework::LocalRecognitionPipeline<Distance, PointInT, FeatureT>::
 
   if (use_cache_) {
     std::pair<std::string, int> pair_model_view = std::make_pair(model.id_, view_id);
-    typename std::map<std::pair<std::string, int>, PointInTPtr>::iterator it =
-        keypoints_cache_.find(pair_model_view);
+    auto it = keypoints_cache_.find(pair_model_view);
 
     if (it != keypoints_cache_.end()) {
       keypoints_cloud = it->second;

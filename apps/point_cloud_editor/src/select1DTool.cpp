@@ -38,7 +38,6 @@
 /// @author  Yue Li and Matthew Hielsberg
 
 #include <algorithm>
-#include <qgl.h>
 #include <pcl/apps/point_cloud_editor/select1DTool.h>
 #include <pcl/apps/point_cloud_editor/cloud.h>
 #include <pcl/apps/point_cloud_editor/selection.h>
@@ -75,7 +74,7 @@ Select1DTool::end (int x, int y, BitMask modifiers, BitMask buttons)
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
     IncIndex inc(1);// start the indexing from 1, since the clear color is 0
-    unsigned int *index_arr = new unsigned int[cloud_ptr_->size()];
+    auto *index_arr = new unsigned int[cloud_ptr_->size()];
     std::generate_n(index_arr, cloud_ptr_->size(), inc);
 
     glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);

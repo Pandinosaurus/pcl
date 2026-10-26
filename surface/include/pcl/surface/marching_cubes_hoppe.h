@@ -45,6 +45,7 @@ namespace pcl
      * from tangent planes, proposed by Hoppe et. al. in:
      * Hoppe H., DeRose T., Duchamp T., MC-Donald J., Stuetzle W., "Surface reconstruction from unorganized points",
      * SIGGRAPH '92
+     * \tparam PointNT Use `pcl::PointNormal` or `pcl::PointXYZRGBNormal` or `pcl::PointXYZINormal`
      * \author Alexandru E. Ichim
      * \ingroup surface
      */
@@ -66,9 +67,6 @@ namespace pcl
       using MarchingCubes<PointNT>::lower_boundary_;
 
       using PointCloudPtr = typename pcl::PointCloud<PointNT>::Ptr;
-
-      using KdTree = pcl::KdTree<PointNT>;
-      using KdTreePtr = typename KdTree::Ptr;
 
 
       /** \brief Constructor. */

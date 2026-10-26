@@ -356,6 +356,7 @@ namespace pcl
     * Lorensen W.E., Cline H.E., "Marching cubes: A high resolution 3d surface construction algorithm",
     * SIGGRAPH '87
     *
+    * \tparam PointNT Use `pcl::PointNormal` or `pcl::PointXYZRGBNormal` or `pcl::PointXYZINormal`
     * \author Alexandru E. Ichim
     * \ingroup surface
     */
@@ -370,9 +371,6 @@ namespace pcl
       using SurfaceReconstruction<PointNT>::tree_;
 
       using PointCloudPtr = typename pcl::PointCloud<PointNT>::Ptr;
-
-      using KdTree = pcl::KdTree<PointNT>;
-      using KdTreePtr = typename KdTree::Ptr;
 
       /** \brief Constructor. */
       MarchingCubes (const float percentage_extend_grid = 0.0f,

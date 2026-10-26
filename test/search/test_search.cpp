@@ -41,6 +41,8 @@
 
 #include <pcl/search/brute_force.h>
 #include <pcl/search/kdtree.h>
+#include <pcl/search/flann_search.h>
+#include <pcl/search/kdtree_nanoflann.h>
 #include <pcl/search/organized.h>
 #include <pcl/search/octree.h>
 #include <pcl/io/pcd_io.h>
@@ -69,16 +71,16 @@ using namespace pcl;
 
 #if EXCESSIVE_TESTING
 /** \brief number of points used for creating unordered point clouds */
-const unsigned int unorganized_point_count = 100000;
+constexpr unsigned int unorganized_point_count = 100000;
 
 /** \brief number of search operations on ordered point clouds*/
-const unsigned int query_count = 5000;
+constexpr unsigned int query_count = 5000;
 #else
 /** \brief number of points used for creating unordered point clouds */
-const unsigned int unorganized_point_count = 1200;
+constexpr unsigned int unorganized_point_count = 1200;
 
 /** \brief number of search operations on ordered point clouds*/
-const unsigned int query_count = 100;
+constexpr unsigned int query_count = 100;
 #endif
 
 /** \brief organized point cloud*/
@@ -113,6 +115,13 @@ pcl::search::BruteForce<pcl::PointXYZ> brute_force;
 
 /** \brief instance of KDTree search method to be tested*/
 pcl::search::KdTree<pcl::PointXYZ> KDTree;
+
+/** \brief instance of FlannSearch search method to be tested*/
+pcl::search::FlannSearch<pcl::PointXYZ> FlannSearch;
+
+#if PCL_HAS_NANOFLANN
+pcl::search::KdTreeNanoflann<pcl::PointXYZ> KDTreeNanoflann;
+#endif
 
 /** \brief instance of Octree search method to be tested*/
 pcl::search::Octree<pcl::PointXYZ> octree_search (0.1);
@@ -302,7 +311,7 @@ testKNNSearch (typename PointCloud<PointT>::ConstPtr point_cloud, std::vector<se
   #pragma omp parallel for \
     shared(nan_mask, point_cloud) \
     default(none)
-  for (int pIdx = 0; pIdx < int (point_cloud->size ()); ++pIdx)
+  for (int pIdx = 0; pIdx < static_cast<int>(point_cloud->size ()); ++pIdx)
   {
     if (!isFinite (point_cloud->points [pIdx]))
       nan_mask [pIdx] = false;
@@ -315,7 +324,7 @@ testKNNSearch (typename PointCloud<PointT>::ConstPtr point_cloud, std::vector<se
   #pragma omp parallel for \
     shared(input_indices, input_indices_, point_cloud, search_methods) \
     default(none)
-  for (int sIdx = 0; sIdx < int (search_methods.size ()); ++sIdx)
+  for (int sIdx = 0; sIdx < static_cast<int>(search_methods.size ()); ++sIdx)
     search_methods [sIdx]->setInputCloud (point_cloud, input_indices_);
 
   // test knn values from 1, 8, 64, 512
@@ -327,7 +336,7 @@ testKNNSearch (typename PointCloud<PointT>::ConstPtr point_cloud, std::vector<se
       #pragma omp parallel for \
         shared(indices, input_indices, indices_mask, distances, knn, nan_mask, passed, point_cloud, query_index, search_methods) \
         default(none)
-      for (int sIdx = 0; sIdx < int (search_methods.size ()); ++sIdx)
+      for (int sIdx = 0; sIdx < static_cast<int>(search_methods.size ()); ++sIdx)
       {
         search_methods [sIdx]->nearestKSearch ((*point_cloud)[query_index], knn, indices [sIdx], distances [sIdx]);
         passed [sIdx] = passed [sIdx] && testUniqueness (indices [sIdx], search_methods [sIdx]->getName ());
@@ -339,7 +348,7 @@ testKNNSearch (typename PointCloud<PointT>::ConstPtr point_cloud, std::vector<se
       #pragma omp parallel for \
         shared(distances, indices, passed, search_methods) \
         default(none)
-      for (int sIdx = 1; sIdx < int (search_methods.size ()); ++sIdx)
+      for (int sIdx = 1; sIdx < static_cast<int>(search_methods.size ()); ++sIdx)
       {
         passed [sIdx] = passed [sIdx] && compareResults (indices [0],    distances [0],    search_methods [0]->getName (),
                                                          indices [sIdx], distances [sIdx], search_methods [sIdx]->getName (), 1e-6f);
@@ -380,7 +389,7 @@ testRadiusSearch (typename PointCloud<PointT>::ConstPtr point_cloud, std::vector
   #pragma omp parallel for \
     default(none) \
     shared(nan_mask, point_cloud)
-  for (int pIdx = 0; pIdx < int (point_cloud->size ()); ++pIdx)
+  for (int pIdx = 0; pIdx < static_cast<int>(point_cloud->size ()); ++pIdx)
   {
     if (!isFinite (point_cloud->points [pIdx]))
       nan_mask [pIdx] = false;
@@ -393,7 +402,7 @@ testRadiusSearch (typename PointCloud<PointT>::ConstPtr point_cloud, std::vector
   #pragma omp parallel for \
     default(none) \
     shared(input_indices_, point_cloud, search_methods)
-  for (int sIdx = 0; sIdx < int (search_methods.size ()); ++sIdx)
+  for (int sIdx = 0; sIdx < static_cast<int>(search_methods.size ()); ++sIdx)
     search_methods [sIdx]->setInputCloud (point_cloud, input_indices_);
 
   // test radii 0.01, 0.02, 0.04, 0.08
@@ -652,15 +661,26 @@ main (int argc, char** argv)
   
   brute_force.setSortedResults (true);
   KDTree.setSortedResults (true);
+#if PCL_HAS_NANOFLANN
+  KDTreeNanoflann.setSortedResults (true);
+#endif
   octree_search.setSortedResults (true);
   organized.setSortedResults (true);
   
   unorganized_search_methods.push_back (&brute_force);
   unorganized_search_methods.push_back (&KDTree);
+  unorganized_search_methods.push_back (&FlannSearch);
+#if PCL_HAS_NANOFLANN
+  unorganized_search_methods.push_back (&KDTreeNanoflann);
+#endif
   unorganized_search_methods.push_back (&octree_search);
   
   organized_search_methods.push_back (&brute_force);
   organized_search_methods.push_back (&KDTree);
+  organized_search_methods.push_back (&FlannSearch);
+#if PCL_HAS_NANOFLANN
+  organized_search_methods.push_back (&KDTreeNanoflann);
+#endif
   organized_search_methods.push_back (&octree_search);
   organized_search_methods.push_back (&organized);
   

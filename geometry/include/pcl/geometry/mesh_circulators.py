@@ -120,8 +120,8 @@ f.write ("// NOTE: This file has been created with 'pcl_src/geometry/include/pcl
 f.write ('#ifndef PCL_GEOMETRY_MESH_CIRCULATORS_H\n')
 f.write ('#define PCL_GEOMETRY_MESH_CIRCULATORS_H\n\n')
 
-f.write ('#include <pcl/geometry/boost.h>\n')
 f.write ('#include <pcl/geometry/mesh_indices.h>\n\n')
+f.write ('#include <boost/operators.hpp>\n\n')
 
 for c in classes:
 
@@ -229,7 +229,7 @@ for c in classes:
     f.write ('        operator ++ ()\n')
     f.write ('        {\n')
     f.write ('          ' + current_he_idx_ + ' = ' + tmp + ';\n')
-    f.write ('          return (*this);\n')
+    f.write ('          return *this;\n')
     f.write ('        }\n\n')
 
     tmp = 'mesh_->get' + dec1 + 'HalfEdgeIndex (' + current_he_idx_ + ')'
@@ -241,7 +241,7 @@ for c in classes:
     f.write ('        operator -- ()\n')
     f.write ('        {\n')
     f.write ('          ' + current_he_idx_ + ' = ' + tmp + ';\n')
-    f.write ('          return (*this);\n')
+    f.write ('          return *this;\n')
     f.write ('        }\n\n')
 
     if deref:

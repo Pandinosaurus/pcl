@@ -129,7 +129,7 @@ public:
   operator++()
   {
     ++index_;
-    return (*this);
+    return *this;
   }
 
   /** \brief Decrement operators (with boost::operators): \-\- (pre and post) */
@@ -137,7 +137,7 @@ public:
   operator--()
   {
     --index_;
-    return (*this);
+    return *this;
   }
 
   /** \brief Addition operators (with boost::operators): + += */
@@ -145,7 +145,7 @@ public:
   operator+=(const Self& other)
   {
     index_ += other.get();
-    return (*this);
+    return *this;
   }
 
   /** \brief Subtraction operators (with boost::operators): - -= */
@@ -153,14 +153,15 @@ public:
   operator-=(const Self& other)
   {
     index_ -= other.get();
-    return (*this);
+    return *this;
   }
 
 private:
   /** \brief Stored index. */
   int index_;
 
-  friend std::istream& operator>><>(std::istream& is, MeshIndex<IndexTagT>& index);
+  friend std::istream&
+  operator>><>(std::istream& is, MeshIndex<IndexTagT>& index);
 };
 
 /** \brief ostream operator. */

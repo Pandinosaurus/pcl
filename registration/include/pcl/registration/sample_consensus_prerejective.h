@@ -45,6 +45,10 @@
 #include <pcl/registration/transformation_estimation_svd.h>
 #include <pcl/registration/transformation_validation.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace pcl {
 /** \brief Pose estimation and alignment class using a prerejective RANSAC routine.
  *
@@ -109,7 +113,7 @@ public:
   using ConstPtr =
       shared_ptr<const SampleConsensusPrerejective<PointSource, PointTarget, FeatureT>>;
 
-  using FeatureKdTreePtr = typename KdTreeFLANN<FeatureT>::Ptr;
+  using FeatureKdTreePtr = typename pcl::search::Search<FeatureT>::Ptr;
 
   using CorrespondenceRejectorPoly =
       pcl::registration::CorrespondenceRejectorPoly<PointSource, PointTarget>;
@@ -121,21 +125,18 @@ public:
   SampleConsensusPrerejective()
   : input_features_()
   , target_features_()
-  , nr_samples_(3)
-  , k_correspondences_(2)
-  , feature_tree_(new pcl::KdTreeFLANN<FeatureT>)
   , correspondence_rejector_poly_(new CorrespondenceRejectorPoly)
-  , inlier_fraction_(0.0f)
   {
     reg_name_ = "SampleConsensusPrerejective";
     correspondence_rejector_poly_->setSimilarityThreshold(0.6f);
     max_iterations_ = 5000;
     transformation_estimation_.reset(
         new pcl::registration::TransformationEstimationSVD<PointSource, PointTarget>);
+    setNumberOfThreads(0);
   };
 
   /** \brief Destructor */
-  ~SampleConsensusPrerejective() = default;
+  ~SampleConsensusPrerejective() override = default;
 
   /** \brief Provide a boost shared pointer to the source point cloud's feature
    * descriptors \param features the source point cloud's features
@@ -246,6 +247,30 @@ public:
     return inliers_;
   }
 
+  /** \brief Initialize the scheduler and set the number of threads to use.
+   * \param nr_threads the number of hardware threads to use (0 sets the value back to
+   * automatic)
+   */
+  void
+  setNumberOfThreads(unsigned int nr_threads = 0)
+  {
+#ifdef _OPENMP
+    if (nr_threads == 0)
+      num_threads_ = omp_get_num_procs();
+    else
+      num_threads_ = nr_threads;
+    PCL_DEBUG("[pcl::SampleConsensusPrerejective::setNumberOfThreads] Setting number "
+              "of threads to %u.\n",
+              num_threads_);
+#else
+    num_threads_ = 1;
+    if (nr_threads != 1)
+      PCL_WARN("[pcl::SampleConsensusPrerejective::setNumberOfThreads] Parallelization "
+               "is requested, but OpenMP is not available! Continuing without "
+               "parallelization.\n");
+#endif // _OPENMP
+  }
+
 protected:
   /** \brief Choose a random index between 0 and n-1
    * \param n the number of possible indices to choose from
@@ -305,11 +330,11 @@ protected:
   FeatureCloudConstPtr target_features_;
 
   /** \brief The number of samples to use during each iteration. */
-  int nr_samples_;
+  int nr_samples_{3};
 
   /** \brief The number of neighbors to use when selecting a random feature
    * correspondence. */
-  int k_correspondences_;
+  int k_correspondences_{2};
 
   /** \brief The KdTree used to compare feature descriptors. */
   FeatureKdTreePtr feature_tree_;
@@ -319,10 +344,13 @@ protected:
 
   /** \brief The fraction [0,1] of inlier points required for accepting a transformation
    */
-  float inlier_fraction_;
+  float inlier_fraction_{0.0f};
 
   /** \brief Inlier points of final transformation as indices into source */
   pcl::Indices inliers_;
+
+  /** \brief The number of threads the scheduler should use. */
+  unsigned int num_threads_{1};
 };
 } // namespace pcl
 

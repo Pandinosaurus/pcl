@@ -666,6 +666,15 @@ std::size_t ON_SerialNumberMap::ActiveIdCount() const
   return m_active_id_count;
 }
 
+#if (_MSC_VER >= 1930 && _MSC_VER <= 1949)
+// Solves internal compiler error on MSVC 2022
+// (see https://github.com/microsoft/vcpkg/issues/19561)
+#define ON_VS2022_COMPILER_CRASH
+#endif
+
+#if defined(ON_VS2022_COMPILER_CRASH)
+#pragma optimize("", off)
+#endif
 struct ON_SerialNumberMap::SN_ELEMENT* ON_SerialNumberMap::FirstElement() const
 {
   struct SN_ELEMENT* e=0;
@@ -717,6 +726,9 @@ struct ON_SerialNumberMap::SN_ELEMENT* ON_SerialNumberMap::FirstElement() const
   }
   return e;
 }
+#if defined(ON_VS2022_COMPILER_CRASH)
+#pragma optimize("", on)
+#endif
 
 struct ON_SerialNumberMap::SN_ELEMENT* ON_SerialNumberMap::LastElement() const
 {

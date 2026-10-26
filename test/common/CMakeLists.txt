@@ -3,16 +3,15 @@ set(SUBSYS_DESC "Point cloud library common module unit tests")
 PCL_SET_TEST_DEPENDENCIES(SUBSYS_DEPS common)
 set(OPT_DEPS io search kdtree octree)
 
-set(DEFAULT ON)
-set(build TRUE)
-PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ${DEFAULT} "${REASON}")
-PCL_SUBSYS_DEPEND(build "${SUBSYS_NAME}" DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
+PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ON)
+PCL_SUBSYS_DEPEND(build NAME ${SUBSYS_NAME} DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
 
 if(NOT build)
   return()
 endif()
 
 # Args: name, executable_name
+PCL_ADD_TEST(common_console test_console FILES test_console.cpp LINK_WITH pcl_gtest pcl_common)
 PCL_ADD_TEST(common_test_wrappers test_wrappers FILES test_wrappers.cpp LINK_WITH pcl_gtest pcl_common)
 PCL_ADD_TEST(common_test_macros test_macros FILES test_macros.cpp LINK_WITH pcl_gtest pcl_common)
 PCL_ADD_TEST(common_vector_average test_vector_average FILES test_vector_average.cpp LINK_WITH pcl_gtest pcl_common)

@@ -54,7 +54,7 @@
     double now = pcl::getTime();                                                       \
     ++count;                                                                           \
     if (now - last >= 1.0) {                                                           \
-      std::cout << "Average framerate(" << _WHAT_ << "): "                             \
+      std::cout << "Average framerate(" << (_WHAT_) << "): "                             \
                 << double(count) / double(now - last) << " Hz" << std::endl;           \
       count = 0;                                                                       \
       last = now;                                                                      \
@@ -76,7 +76,7 @@ public:
 
   OpenNIPassthrough(pcl::OpenNIGrabber& grabber);
 
-  ~OpenNIPassthrough()
+  ~OpenNIPassthrough() override
   {
     if (grabber_.isRunning())
       grabber_.stop();

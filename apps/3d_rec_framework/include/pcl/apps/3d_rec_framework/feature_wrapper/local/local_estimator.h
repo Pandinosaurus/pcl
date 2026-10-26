@@ -12,6 +12,7 @@
 #include <pcl/keypoints/harris_3d.h>
 #include <pcl/keypoints/sift_keypoint.h>
 #include <pcl/keypoints/susan.h>
+#include <pcl/search/auto.h>
 #include <pcl/surface/mls.h>
 
 #include <memory>
@@ -86,11 +87,8 @@ private:
     pcl::PointCloud<int> filtered_keypoints;
     // create a search object
     typename pcl::search::Search<PointInT>::Ptr tree;
-    if (input->isOrganized())
-      tree.reset(new pcl::search::OrganizedNeighbor<PointInT>());
-    else
-      tree.reset(new pcl::search::KdTree<PointInT>(false));
-    tree->setInputCloud(input);
+    tree.reset(pcl::search::autoSelectMethod<PointInT>(
+        input, false, pcl::search::Purpose::radius_search));
 
     neighborhood_indices_.reset(new std::vector<pcl::Indices>);
     neighborhood_indices_->resize(keypoints_cloud->size());
@@ -215,7 +213,7 @@ public:
   void
   compute(PointInTPtr& keypoints)
   {
-    if (normals_ == 0 || (normals_->size() != input_->size()))
+    if (normals_ == nullptr || (normals_->size() != input_->size()))
       PCL_WARN("SIFTSurfaceKeypointExtractor -- Normals are not valid\n");
 
     keypoints.reset(new pcl::PointCloud<PointInT>);
@@ -297,7 +295,7 @@ public:
   {
     keypoints.reset(new pcl::PointCloud<PointInT>);
 
-    if (normals_ == 0 || (normals_->size() != input_->size()))
+    if (normals_ == nullptr || (normals_->size() != input_->size()))
       PCL_WARN("HarrisKeypointExtractor -- Normals are not valid\n");
 
     typename pcl::PointCloud<pcl::PointXYZI>::Ptr intensity_keypoints(
@@ -327,7 +325,7 @@ class SUSANKeypointExtractor : public KeypointExtractor<PointInT> {
   using KeypointExtractor<PointInT>::radius_;
 
 public:
-  SUSANKeypointExtractor() {}
+  SUSANKeypointExtractor() = default;
 
   bool
   needNormals()
@@ -346,7 +344,7 @@ public:
   {
     keypoints.reset(new pcl::PointCloud<PointInT>);
 
-    if (normals_ == 0 || (normals_->size() != input_->size()))
+    if (normals_ == nullptr || (normals_->size() != input_->size()))
       PCL_WARN("SUSANKeypointExtractor -- Normals are not valid\n");
 
     typename pcl::PointCloud<pcl::PointXYZI>::Ptr intensity_keypoints(

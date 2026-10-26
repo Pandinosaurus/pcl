@@ -64,7 +64,13 @@ namespace pcl
       //-----OPERATORS-----
       /** = operator */
       BivariatePolynomialT&
-      operator= (const BivariatePolynomialT& other) { deepCopy (other); return *this;}
+      operator= (const BivariatePolynomialT& other)
+      {
+        if (this == &other)
+          return *this;
+        deepCopy (other);
+        return *this;
+      }
 
       //-----METHODS-----
       /** Initialize members to default values */
@@ -114,9 +120,10 @@ namespace pcl
       getNoOfParametersFromDegree (int n) { return ((n+2)* (n+1))/2;}
 
       //-----VARIABLES-----
-      int degree;
-      real* parameters;
-      BivariatePolynomialT<real>* gradient_x, * gradient_y;
+      int degree{0};
+      real* parameters{nullptr};
+      BivariatePolynomialT<real>* gradient_x{nullptr};
+      BivariatePolynomialT<real>* gradient_y{nullptr};
 
     protected:
       //-----METHODS-----

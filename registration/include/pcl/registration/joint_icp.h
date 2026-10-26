@@ -65,11 +65,11 @@ public:
   using PointCloudTargetPtr = typename PointCloudTarget::Ptr;
   using PointCloudTargetConstPtr = typename PointCloudTarget::ConstPtr;
 
-  using KdTree = pcl::search::KdTree<PointTarget>;
+  using KdTree = pcl::search::Search<PointTarget>;
   using KdTreePtr = typename KdTree::Ptr;
 
-  using KdTreeReciprocal = pcl::search::KdTree<PointSource>;
-  using KdTreeReciprocalPtr = typename KdTree::Ptr;
+  using KdTreeReciprocal = pcl::search::Search<PointSource>;
+  using KdTreeReciprocalPtr = typename KdTreeReciprocal::Ptr;
 
   using PointIndicesPtr = PointIndices::Ptr;
   using PointIndicesConstPtr = PointIndices::ConstPtr;
@@ -126,14 +126,10 @@ public:
       typename IterativeClosestPoint<PointSource, PointTarget, Scalar>::Matrix4;
 
   /** \brief Empty constructor. */
-  JointIterativeClosestPoint()
-  {
-    IterativeClosestPoint<PointSource, PointTarget, Scalar>();
-    reg_name_ = "JointIterativeClosestPoint";
-  };
+  JointIterativeClosestPoint() { reg_name_ = "JointIterativeClosestPoint"; };
 
   /** \brief Empty destructor */
-  ~JointIterativeClosestPoint() = default;
+  ~JointIterativeClosestPoint() override = default;
 
   /** \brief Provide a pointer to the input source
    * (e.g., the point cloud that we want to align to the target)

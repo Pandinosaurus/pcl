@@ -51,8 +51,7 @@ public:
     if (resolution <= 0)
       return assembled_;
 
-    typename std::map<float, PointTPtrConst>::iterator it =
-        voxelized_assembled_.find(resolution);
+    auto it = voxelized_assembled_.find(resolution);
     if (it == voxelized_assembled_.end()) {
       PointTPtr voxelized(new pcl::PointCloud<PointT>);
       pcl::VoxelGrid<PointT> grid_;
@@ -194,16 +193,10 @@ public:
   std::shared_ptr<std::vector<ModelT>>
   getModels(std::string& model_id)
   {
-
-    typename std::vector<ModelT>::iterator it = models_->begin();
-    while (it != models_->end()) {
-      if (model_id != (*it).id_) {
-        it = models_->erase(it);
-      }
-      else {
-        it++;
-      }
-    }
+    models_->erase(std::remove_if(models_->begin(),
+                                  models_->end(),
+                                  [=](ModelT& s) { return (s.id_ != model_id); }),
+                   models_->end());
 
     return models_;
   }

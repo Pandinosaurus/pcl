@@ -28,18 +28,15 @@
 // and statically link with the zlib library. All the necessary
 // header files are included by opennurbs.h.
 
+// PCL uses external zlib.
+#define z_deflate deflate
+#define z_inflate inflate
+#define z_Bytef Bytef
 
-#if !defined(Z_PREFIX)
-/* decorates zlib functions with a "z_" prefix to prevent symbol collision. */
-#define Z_PREFIX
-#endif
+#define zcalloc pcl_zcalloc
+#define zcfree pcl_zcfree
 
-#if !defined(MY_ZCALLOC)
-/* have zlib use oncalloc() and onfree() for memory managment*/
-#define MY_ZCALLOC
-#endif
-
-#include "zlib.h"
+#include <zlib.h>
 
 ON_BEGIN_EXTERNC
 voidpf zcalloc (voidpf, unsigned, unsigned);

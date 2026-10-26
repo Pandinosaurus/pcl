@@ -64,10 +64,7 @@ public:
   /** \brief Constructor.
    *
    * */
-  ColorCoding () :
-    output_ (), colorBitReduction_ (0)
-  {
-  }
+  ColorCoding () = default;
 
   /** \brief Empty class constructor. */
   virtual
@@ -173,7 +170,7 @@ public:
 
     }
 
-    const uindex_t len = static_cast<uindex_t> (indexVector_arg.size());
+    const auto len = static_cast<uindex_t> (indexVector_arg.size());
     // calculated average color information
     if (len > 1)
     {
@@ -222,7 +219,7 @@ public:
 
     }
 
-    const uindex_t len = static_cast<uindex_t> (indexVector_arg.size());
+    const auto len = static_cast<uindex_t> (indexVector_arg.size());
     if (len > 1)
     {
       unsigned char diffRed;
@@ -339,7 +336,7 @@ public:
     assert (beginIdx_arg <= endIdx_arg);
 
     // amount of points to be decoded
-    unsigned int pointCount = static_cast<unsigned int> (endIdx_arg - beginIdx_arg);
+    auto pointCount = static_cast<unsigned int> (endIdx_arg - beginIdx_arg);
 
     // iterate over points
     for (std::size_t i = 0; i < pointCount; i++)
@@ -353,7 +350,7 @@ public:
 
 protected:
   /** \brief Pointer to output point cloud dataset. */
-  PointCloudPtr output_;
+  PointCloudPtr output_{nullptr};
 
   /** \brief Vector for storing average color information  */
   std::vector<char> pointAvgColorDataVector_;
@@ -368,7 +365,7 @@ protected:
   std::vector<char>::const_iterator pointDiffColorDataVector_Iterator_;
 
   /** \brief Amount of bits to be removed from color components before encoding */
-  unsigned char colorBitReduction_;
+  unsigned char colorBitReduction_{0};
 
   // frame header identifier
   static const int defaultColor_;

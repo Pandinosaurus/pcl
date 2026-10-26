@@ -92,7 +92,7 @@ char usage[] = "\n"
     double now = pcl::getTime();                                                       \
     ++count;                                                                           \
     if (now - last >= 1.0) {                                                           \
-      std::cout << "Average framerate(" << _WHAT_ << "): "                             \
+      std::cout << "Average framerate(" << (_WHAT_) << "): "                             \
                 << double(count) / double(now - last) << " Hz" << std::endl;           \
       count = 0;                                                                       \
       last = now;                                                                      \
@@ -147,7 +147,7 @@ public:
 
     if (!bRawImageEncoding_) {
       // create a new grabber for OpenNI devices
-      pcl::OpenNIGrabber interface{};
+      pcl::OpenNIGrabber interface;
 
       // make callback function from member function
       std::function<void(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr&)> f =
@@ -226,14 +226,14 @@ struct EventHelper {
     depth_image->fillDepthImageRaw(
         width,
         height,
-        &disparity_data[0],
+        disparity_data.data(),
         static_cast<unsigned int>(width * sizeof(std::uint16_t)));
 
     if (image->getEncoding() != openni_wrapper::Image::RGB) {
       rgb_data.resize(width * height * 3);
       image->fillRGB(width,
                      height,
-                     &rgb_data[0],
+                     rgb_data.data(),
                      static_cast<unsigned int>(width * sizeof(std::uint8_t) * 3));
     }
 
@@ -253,7 +253,7 @@ struct EventHelper {
   {
     if (!bRawImageEncoding_) {
       // create a new grabber for OpenNI devices
-      pcl::OpenNIGrabber interface{};
+      pcl::OpenNIGrabber interface;
 
       // make callback function from member function
       std::function<void(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr&)> f =
@@ -438,7 +438,7 @@ main(int argc, char** argv)
     if (bEnDecode) {
       // ENCODING
       try {
-        boost::asio::io_service io_service;
+        boost::asio::io_context io_service;
         tcp::endpoint endpoint(tcp::v4(), 6666);
         tcp::acceptor acceptor(io_service, endpoint);
 
@@ -446,7 +446,7 @@ main(int argc, char** argv)
 
         std::cout << "Waiting for connection.." << std::endl;
 
-        acceptor.accept(*socketStream.rdbuf());
+        acceptor.accept(socketStream.rdbuf()->socket());
 
         std::cout << "Connected!" << std::endl;
 

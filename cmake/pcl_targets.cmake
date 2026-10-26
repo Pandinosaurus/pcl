@@ -81,98 +81,53 @@ endmacro()
 # they are not being built.
 # _var The cumulative build variable. This will be set to FALSE if the
 #   dependencies are not met.
-# _name The name of the subsystem.
 # ARGN The subsystems and external libraries to depend on.
-macro(PCL_SUBSYS_DEPEND _var _name)
+macro(PCL_SUBSYS_DEPEND _var)
   set(options)
   set(oneValueArgs)
-  set(multiValueArgs DEPS EXT_DEPS OPT_DEPS)
-  cmake_parse_arguments(SUBSYS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-  if(SUBSYS_DEPS)
-    SET_IN_GLOBAL_MAP(PCL_SUBSYS_DEPS ${_name} "${SUBSYS_DEPS}")
+  set(multiValueArgs DEPS EXT_DEPS OPT_DEPS NAME PARENT_NAME)
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_SUBSYS_DEPEND: ${ARGS_UNPARSED_ARGUMENTS}")
   endif()
-  if(SUBSYS_EXT_DEPS)
-    SET_IN_GLOBAL_MAP(PCL_SUBSYS_EXT_DEPS ${_name} "${SUBSYS_EXT_DEPS}")
+
+  if(NOT ARGS_NAME)
+    message(FATAL_ERROR "PCL_SUBSYS_DEPEND requires parameter NAME!")
   endif()
-  if(SUBSYS_OPT_DEPS)
-    SET_IN_GLOBAL_MAP(PCL_SUBSYS_OPT_DEPS ${_name} "${SUBSYS_OPT_DEPS}")
+
+  set(_name ${ARGS_NAME})
+  if(ARGS_PARENT_NAME)
+    string(PREPEND _name "${ARGS_PARENT_NAME}_")
+  endif()
+
+  if(ARGS_DEPS)
+    SET_IN_GLOBAL_MAP(PCL_SUBSYS_DEPS ${_name} "${ARGS_DEPS}")
+  endif()
+  if(ARGS_EXT_DEPS)
+    SET_IN_GLOBAL_MAP(PCL_SUBSYS_EXT_DEPS ${_name} "${ARGS_EXT_DEPS}")
+  endif()
+  if(ARGS_OPT_DEPS)
+    SET_IN_GLOBAL_MAP(PCL_SUBSYS_OPT_DEPS ${_name} "${ARGS_OPT_DEPS}")
   endif()
   GET_IN_MAP(subsys_status PCL_SUBSYS_HYPERSTATUS ${_name})
   if(${_var} AND (NOT ("${subsys_status}" STREQUAL "AUTO_OFF")))
-    if(SUBSYS_DEPS)
-      foreach(_dep ${SUBSYS_DEPS})
+    if(ARGS_DEPS)
+      foreach(_dep ${ARGS_DEPS})
         PCL_GET_SUBSYS_STATUS(_status ${_dep})
         if(NOT _status)
           set(${_var} FALSE)
           PCL_SET_SUBSYS_STATUS(${_name} FALSE "Requires ${_dep}.")
-        else()
-          PCL_GET_SUBSYS_INCLUDE_DIR(_include_dir ${_dep})
-          include_directories(${PROJECT_SOURCE_DIR}/${_include_dir}/include)
         endif()
       endforeach()
     endif()
-    if(SUBSYS_EXT_DEPS)
-      foreach(_dep ${SUBSYS_EXT_DEPS})
+    if(ARGS_EXT_DEPS)
+      foreach(_dep ${ARGS_EXT_DEPS})
         string(TOUPPER "${_dep}_found" EXT_DEP_FOUND)
         #Variable EXT_DEP_FOUND expands to ie. QHULL_FOUND which in turn is then used to see if the EXT_DEPS is found.
         if(NOT ${EXT_DEP_FOUND})
           set(${_var} FALSE)
           PCL_SET_SUBSYS_STATUS(${_name} FALSE "Requires external library ${_dep}.")
-        endif()
-      endforeach()
-    endif()
-    if(SUBSYS_OPT_DEPS)
-      foreach(_dep ${SUBSYS_OPT_DEPS})
-        PCL_GET_SUBSYS_INCLUDE_DIR(_include_dir ${_dep})
-        include_directories(${PROJECT_SOURCE_DIR}/${_include_dir}/include)
-      endforeach()
-    endif()
-  endif()
-endmacro()
-
-###############################################################################
-# Make one subsystem depend on one or more other subsystems, and disable it if
-# they are not being built.
-# _var The cumulative build variable. This will be set to FALSE if the
-#   dependencies are not met.
-# _parent The parent subsystem name.
-# _name The name of the subsubsystem.
-# ARGN The subsystems and external libraries to depend on.
-macro(PCL_SUBSUBSYS_DEPEND _var _parent _name)
-  set(options)
-  set(parentArg)
-  set(nameArg)
-  set(multiValueArgs DEPS EXT_DEPS OPT_DEPS)
-  cmake_parse_arguments(SUBSYS "${options}" "${parentArg}" "${nameArg}" "${multiValueArgs}" ${ARGN})
-  if(SUBSUBSYS_DEPS)
-    SET_IN_GLOBAL_MAP(PCL_SUBSYS_DEPS ${_parent}_${_name} "${SUBSUBSYS_DEPS}")
-  endif()
-  if(SUBSUBSYS_EXT_DEPS)
-    SET_IN_GLOBAL_MAP(PCL_SUBSYS_EXT_DEPS ${_parent}_${_name} "${SUBSUBSYS_EXT_DEPS}")
-  endif()
-  if(SUBSUBSYS_OPT_DEPS)
-    SET_IN_GLOBAL_MAP(PCL_SUBSYS_OPT_DEPS ${_parent}_${_name} "${SUBSUBSYS_OPT_DEPS}")
-  endif()
-  GET_IN_MAP(subsys_status PCL_SUBSYS_HYPERSTATUS ${_parent}_${_name})
-  if(${_var} AND (NOT ("${subsys_status}" STREQUAL "AUTO_OFF")))
-    if(SUBSUBSYS_DEPS)
-      foreach(_dep ${SUBSUBSYS_DEPS})
-        PCL_GET_SUBSYS_STATUS(_status ${_dep})
-        if(NOT _status)
-          set(${_var} FALSE)
-          PCL_SET_SUBSYS_STATUS(${_parent}_${_name} FALSE "Requires ${_dep}.")
-        else()
-          PCL_GET_SUBSYS_INCLUDE_DIR(_include_dir ${_dep})
-          include_directories(${PROJECT_SOURCE_DIR}/${_include_dir}/include)
-        endif()
-      endforeach()
-    endif()
-    if(SUBSUBSYS_EXT_DEPS)
-      foreach(_dep ${SUBSUBSYS_EXT_DEPS})
-        string(TOUPPER "${_dep}_found" EXT_DEP_FOUND)
-        if(NOT ${EXT_DEP_FOUND})
-          set(${_var} FALSE)
-          PCL_SET_SUBSYS_STATUS(${_parent}_${_name} FALSE "Requires external library ${_dep}.")
         endif()
       endforeach()
     endif()
@@ -217,43 +172,72 @@ endmacro()
 function(PCL_ADD_LIBRARY _name)
   set(options)
   set(oneValueArgs COMPONENT)
-  set(multiValueArgs SOURCES)
-  cmake_parse_arguments(ADD_LIBRARY_OPTION "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  set(multiValueArgs SOURCES INCLUDES)
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  add_library(${_name} ${PCL_LIB_TYPE} ${ADD_LIBRARY_OPTION_SOURCES})
-  PCL_ADD_VERSION_INFO(${_name})
-  target_compile_features(${_name} PUBLIC ${PCL_CXX_COMPILE_FEATURES})
-
-  target_link_libraries(${_name} Threads::Threads)
-  if(TARGET OpenMP::OpenMP_CXX)
-    target_link_libraries(${_name} OpenMP::OpenMP_CXX)
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_ADD_LIBRARY: ${ARGS_UNPARSED_ARGUMENTS}")
   endif()
 
-  if((UNIX AND NOT ANDROID) OR MINGW)
-    target_link_libraries(${_name} m ${ATOMIC_LIBRARY})
+  if(NOT ARGS_COMPONENT)
+    message(FATAL_ERROR "PCL_ADD_LIBRARY requires parameter COMPONENT.")
   endif()
 
-  if(MINGW)
-    target_link_libraries(${_name} gomp)
-  endif()
+  if(NOT ARGS_SOURCES)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
+      add_library(${_name} INTERFACE ${ARGS_INCLUDES})
 
-  if(MSVC)
-    target_link_libraries(${_name} delayimp.lib)  # because delay load is enabled for openmp.dll
-  endif()
+      set_target_properties(${_name} PROPERTIES FOLDER "Libraries")
+    else()
+      add_library(${_name} INTERFACE)
+    endif()
+    
+    target_include_directories(${_name} INTERFACE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${INCLUDE_INSTALL_ROOT}> 
+    )
+  else()
+    add_library(${_name} ${PCL_LIB_TYPE} ${ARGS_SOURCES})
+    PCL_ADD_VERSION_INFO(${_name})
+    target_compile_features(${_name} PUBLIC ${PCL_CXX_COMPILE_FEATURES})
 
-  set_target_properties(${_name} PROPERTIES
-    VERSION ${PCL_VERSION}
-    SOVERSION ${PCL_VERSION_MAJOR}.${PCL_VERSION_MINOR}
-    DEFINE_SYMBOL "PCLAPI_EXPORTS")
-  set_target_properties(${_name} PROPERTIES FOLDER "Libraries")
+    target_include_directories(${_name} PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${INCLUDE_INSTALL_ROOT}> 
+    )
+
+    target_link_libraries(${_name} Threads::Threads)
+    if(TARGET OpenMP::OpenMP_CXX)
+      target_link_libraries(${_name} OpenMP::OpenMP_CXX)
+    endif()
+
+    if((UNIX AND NOT ANDROID) OR MINGW)
+      target_link_libraries(${_name} m ${ATOMIC_LIBRARY})
+    endif()
+
+    if(MINGW)
+      target_link_libraries(${_name} gomp)
+    endif()
+
+    if(MSVC)
+      target_link_libraries(${_name} delayimp.lib)  # because delay load is enabled for openmp.dll
+    endif()
+    
+    set_target_properties(${_name} PROPERTIES
+      VERSION ${PCL_VERSION}
+      SOVERSION ${PCL_VERSION_MAJOR}.${PCL_VERSION_MINOR}
+      DEFINE_SYMBOL "PCLAPI_EXPORTS")
+
+      set_target_properties(${_name} PROPERTIES FOLDER "Libraries")
+  endif()
 
   install(TARGETS ${_name}
-          RUNTIME DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT}
-          LIBRARY DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT}
-          ARCHIVE DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT})
+          RUNTIME DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT}
+          LIBRARY DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT}
+          ARCHIVE DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT})
 
   # Copy PDB if available
-  if(MSVC AND PCL_SHARED_LIBS)
+  if(MSVC AND ${PCL_LIB_TYPE} EQUAL "SHARED")
     install(FILES $<TARGET_PDB_FILE:${_name}> DESTINATION ${BIN_INSTALL_DIR} OPTIONAL)
   endif()
 endfunction()
@@ -266,29 +250,61 @@ endfunction()
 function(PCL_CUDA_ADD_LIBRARY _name)
   set(options)
   set(oneValueArgs COMPONENT)
-  set(multiValueArgs SOURCES)
-  cmake_parse_arguments(ADD_LIBRARY_OPTION "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  set(multiValueArgs SOURCES INCLUDES)
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_CUDA_ADD_LIBRARY: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
+
+  if(NOT ARGS_COMPONENT)
+    message(FATAL_ERROR "PCL_CUDA_ADD_LIBRARY requires parameter COMPONENT.")
+  endif()
 
   REMOVE_VTK_DEFINITIONS()
+  if(NOT ARGS_SOURCES)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
+      add_library(${_name} INTERFACE ${ARGS_INCLUDES})
 
-  add_library(${_name} ${PCL_LIB_TYPE} ${ADD_LIBRARY_OPTION_SOURCES})
+      set_target_properties(${_name} PROPERTIES FOLDER "Libraries")
+    else()
+      add_library(${_name} INTERFACE)
+    endif()
 
-  PCL_ADD_VERSION_INFO(${_name})
+    target_include_directories(${_name} INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${INCLUDE_INSTALL_ROOT}> 
+    )
 
-  target_compile_options(${_name} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>: ${GEN_CODE} --expt-relaxed-constexpr>)
-
-  target_include_directories(${_name} PRIVATE ${CUDA_TOOLKIT_INCLUDE})
-
-  set_target_properties(${_name} PROPERTIES
-    VERSION ${PCL_VERSION}
-    SOVERSION ${PCL_VERSION_MAJOR}.${PCL_VERSION_MINOR}
-    DEFINE_SYMBOL "PCLAPI_EXPORTS")
-  set_target_properties(${_name} PROPERTIES FOLDER "Libraries")
+  else()
+    add_library(${_name} ${PCL_LIB_TYPE} ${ARGS_SOURCES})
+  
+    PCL_ADD_VERSION_INFO(${_name})
+  
+    target_compile_options(${_name} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>: ${GEN_CODE} --expt-relaxed-constexpr>)
+  
+    target_include_directories(${_name} PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${INCLUDE_INSTALL_ROOT}> 
+    )
+  
+    target_include_directories(${_name} PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  
+    if(MSVC)
+      target_link_libraries(${_name} delayimp.lib)  # because delay load is enabled for openmp.dll
+    endif()
+  
+    set_target_properties(${_name} PROPERTIES
+      VERSION ${PCL_VERSION}
+      SOVERSION ${PCL_VERSION_MAJOR}.${PCL_VERSION_MINOR}
+      DEFINE_SYMBOL "PCLAPI_EXPORTS")
+    set_target_properties(${_name} PROPERTIES FOLDER "Libraries")
+  endif()
 
   install(TARGETS ${_name}
-          RUNTIME DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT}
-          LIBRARY DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT}
-          ARCHIVE DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT})
+          RUNTIME DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT}
+          LIBRARY DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT}
+          ARCHIVE DESTINATION ${LIB_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT})
 endfunction()
 
 ###############################################################################
@@ -301,15 +317,23 @@ function(PCL_ADD_EXECUTABLE _name)
   set(options BUNDLE)
   set(oneValueArgs COMPONENT)
   set(multiValueArgs SOURCES)
-  cmake_parse_arguments(ADD_LIBRARY_OPTION "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  if(ADD_LIBRARY_OPTION_BUNDLE AND APPLE AND VTK_USE_COCOA)
-    add_executable(${_name} MACOSX_BUNDLE ${ADD_LIBRARY_OPTION_SOURCES})
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_ADD_EXECUTABLE: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
+
+  if(NOT ARGS_COMPONENT)
+    message(FATAL_ERROR "PCL_ADD_EXECUTABLE requires parameter COMPONENT.")
+  endif()
+
+  if(ARGS_BUNDLE AND APPLE AND VTK_USE_COCOA)
+    add_executable(${_name} MACOSX_BUNDLE ${ARGS_SOURCES})
   else()
-    add_executable(${_name} ${ADD_LIBRARY_OPTION_SOURCES})
+    add_executable(${_name} ${ARGS_SOURCES})
   endif()
   PCL_ADD_VERSION_INFO(${_name})
-  
+
   target_link_libraries(${_name} Threads::Threads)
 
   if(WIN32 AND MSVC)
@@ -318,8 +342,8 @@ function(PCL_ADD_EXECUTABLE _name)
   endif()
 
   # Some app targets report are defined with subsys other than apps
-  # It's simpler check for tools and assume everythin else as an app
-  if(${ADD_LIBRARY_OPTION_COMPONENT} STREQUAL "tools")
+  # It's simpler check for tools and assume everything else as an app
+  if(${ARGS_COMPONENT} STREQUAL "tools")
     set_target_properties(${_name} PROPERTIES FOLDER "Tools")
   else()
     set_target_properties(${_name} PROPERTIES FOLDER "Apps")
@@ -327,13 +351,13 @@ function(PCL_ADD_EXECUTABLE _name)
 
   set(PCL_EXECUTABLES ${PCL_EXECUTABLES} ${_name})
 
-  if(ADD_LIBRARY_OPTION_BUNDLE AND APPLE AND VTK_USE_COCOA)
-    install(TARGETS ${_name} BUNDLE DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT})
+  if(ARGS_BUNDLE AND APPLE AND VTK_USE_COCOA)
+    install(TARGETS ${_name} BUNDLE DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT})
   else()
-    install(TARGETS ${_name} RUNTIME DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT})
+    install(TARGETS ${_name} RUNTIME DESTINATION ${BIN_INSTALL_DIR} COMPONENT pcl_${ARGS_COMPONENT})
   endif()
 
-  string(TOUPPER ${ADD_LIBRARY_OPTION_COMPONENT} _component_upper)
+  string(TOUPPER ${ARGS_COMPONENT} _component_upper)
   set(PCL_${_component_upper}_ALL_TARGETS ${PCL_${_component_upper}_ALL_TARGETS} ${_name} PARENT_SCOPE)
 endfunction()
 
@@ -346,16 +370,24 @@ function(PCL_CUDA_ADD_EXECUTABLE _name)
   set(options)
   set(oneValueArgs COMPONENT)
   set(multiValueArgs SOURCES)
-  cmake_parse_arguments(ADD_LIBRARY_OPTION "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_CUDA_ADD_EXECUTABLE: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
+
+  if(NOT ARGS_COMPONENT)
+    message(FATAL_ERROR "PCL_CUDA_ADD_EXECUTABLE requires parameter COMPONENT.")
+  endif()
 
   REMOVE_VTK_DEFINITIONS()
-  
-  add_executable(${_name} ${ADD_LIBRARY_OPTION_SOURCES})
-  
+
+  add_executable(${_name} ${ARGS_SOURCES})
+
   PCL_ADD_VERSION_INFO(${_name})
 
   target_compile_options(${_name} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>: ${GEN_CODE} --expt-relaxed-constexpr>)
-  
+
   target_include_directories(${_name} PRIVATE ${CUDA_TOOLKIT_INCLUDE})
 
   if(WIN32 AND MSVC)
@@ -368,7 +400,7 @@ function(PCL_CUDA_ADD_EXECUTABLE _name)
 
   set(PCL_EXECUTABLES ${PCL_EXECUTABLES} ${_name})
   install(TARGETS ${_name} RUNTIME DESTINATION ${BIN_INSTALL_DIR}
-          COMPONENT pcl_${ADD_LIBRARY_OPTION_COMPONENT})
+          COMPONENT pcl_${ARGS_COMPONENT})
 endfunction()
 
 ###############################################################################
@@ -383,33 +415,32 @@ macro(PCL_ADD_TEST _name _exename)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs FILES ARGUMENTS LINK_WITH)
-  cmake_parse_arguments(PCL_ADD_TEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-  add_executable(${_exename} ${PCL_ADD_TEST_FILES})
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_ADD_TEST: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
+
+  add_executable(${_exename} ${ARGS_FILES})
   if(NOT WIN32)
     set_target_properties(${_exename} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   endif()
-  #target_link_libraries(${_exename} ${GTEST_BOTH_LIBRARIES} ${PCL_ADD_TEST_LINK_WITH})
-  target_link_libraries(${_exename} ${PCL_ADD_TEST_LINK_WITH} ${CLANG_LIBRARIES})
+  #target_link_libraries(${_exename} ${GTEST_BOTH_LIBRARIES} ${ARGS_LINK_WITH})
+  target_link_libraries(${_exename} ${ARGS_LINK_WITH} ${CLANG_LIBRARIES})
 
   target_link_libraries(${_exename} Threads::Threads ${ATOMIC_LIBRARY})
 
   #Only applies to MSVC
   if(MSVC)
-    #Requires CMAKE version 3.13.0
-    if(CMAKE_VERSION VERSION_LESS "3.13.0" AND (NOT ArgumentWarningShown))
-      message(WARNING "Arguments for unit test projects are not added - this requires at least CMake 3.13. Can be added manually in \"Project settings -> Debugging -> Command arguments\"")
-      SET (ArgumentWarningShown TRUE PARENT_SCOPE)
-    else()
-      #Only add if there are arguments to test
-      if(PCL_ADD_TEST_ARGUMENTS)
-        string (REPLACE ";" " " PCL_ADD_TEST_ARGUMENTS_STR "${PCL_ADD_TEST_ARGUMENTS}")
-        set_target_properties(${_exename} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS ${PCL_ADD_TEST_ARGUMENTS_STR})
-      endif()
+    #Only add if there are arguments to test
+    if(ARGS_ARGUMENTS)
+      string (REPLACE ";" " " ARGS_ARGUMENTS_STR "${ARGS_ARGUMENTS}")
+      set_target_properties(${_exename} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS ${ARGS_ARGUMENTS_STR})
     endif()
   endif()
 
   set_target_properties(${_exename} PROPERTIES FOLDER "Tests")
-  add_test(NAME ${_name} COMMAND ${_exename} ${PCL_ADD_TEST_ARGUMENTS})
+  add_test(NAME ${_name} COMMAND ${_exename} ${ARGS_ARGUMENTS})
 
   add_dependencies(tests ${_exename})
 endmacro()
@@ -425,32 +456,36 @@ function(PCL_ADD_BENCHMARK _name)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs FILES ARGUMENTS LINK_WITH)
-  cmake_parse_arguments(PCL_ADD_BENCHMARK "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  add_executable(benchmark_${_name} ${PCL_ADD_BENCHMARK_FILES})
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_ADD_BENCHMARK: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
+
+  add_executable(benchmark_${_name} ${ARGS_FILES})
   set_target_properties(benchmark_${_name} PROPERTIES FOLDER "Benchmarks")
-  target_link_libraries(benchmark_${_name} benchmark::benchmark ${PCL_ADD_BENCHMARK_LINK_WITH})
+  target_link_libraries(benchmark_${_name} benchmark::benchmark ${ARGS_LINK_WITH})
   set_target_properties(benchmark_${_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-  
+
+  # See https://github.com/google/benchmark/issues/1457
+  if(BenchmarkBuildType STREQUAL "STATIC_LIBRARY" AND benchmark_VERSION STREQUAL "1.7.0")
+    target_compile_definitions(benchmark_${_name} PUBLIC -DBENCHMARK_STATIC_DEFINE)
+  endif()
+
   #Only applies to MSVC
   if(MSVC)
     #Requires CMAKE version 3.13.0
     get_target_property(BenchmarkArgumentWarningShown run_benchmarks PCL_BENCHMARK_ARGUMENTS_WARNING_SHOWN)
-    if(CMAKE_VERSION VERSION_LESS "3.13.0" AND (NOT BenchmarkArgumentWarningShown))
-      message(WARNING "Arguments for benchmark projects are not added - this requires at least CMake 3.13. Can be added manually in \"Project settings -> Debugging -> Command arguments\"")
-      set_target_properties(run_benchmarks PROPERTIES PCL_BENCHMARK_ARGUMENTS_WARNING_SHOWN TRUE)
-    else()
-      #Only add if there are arguments to test
-      if(PCL_ADD_BENCHMARK_ARGUMENTS)
-        string (REPLACE ";" " " PCL_ADD_BENCHMARK_ARGUMENTS_STR "${PCL_ADD_BENCHMARK_ARGUMENTS}")
-        set_target_properties(benchmark_${_name} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS ${PCL_ADD_BENCHMARK_ARGUMENTS_STR})
-      endif()
+    #Only add if there are arguments to test
+    if(ARGS_ARGUMENTS)
+      string (REPLACE ";" " " ARGS_ARGUMENTS_STR "${ARGS_ARGUMENTS}")
+      set_target_properties(benchmark_${_name} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS ${ARGS_ARGUMENTS_STR})
     endif()
   endif()
-  
-  add_custom_target(run_benchmark_${_name} benchmark_${_name} ${PCL_ADD_BENCHMARK_ARGUMENTS})
+
+  add_custom_target(run_benchmark_${_name} benchmark_${_name} ${ARGS_ARGUMENTS})
   set_target_properties(run_benchmark_${_name} PROPERTIES FOLDER "Benchmarks")
-  
+
   add_dependencies(run_benchmarks run_benchmark_${_name})
 endfunction()
 
@@ -464,9 +499,14 @@ macro(PCL_ADD_EXAMPLE _name)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs FILES LINK_WITH)
-  cmake_parse_arguments(PCL_ADD_EXAMPLE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-  add_executable(${_name} ${PCL_ADD_EXAMPLE_FILES})
-  target_link_libraries(${_name} ${PCL_ADD_EXAMPLE_LINK_WITH} ${CLANG_LIBRARIES})
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_ADD_EXAMPLE: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
+
+  add_executable(${_name} ${ARGS_FILES})
+  target_link_libraries(${_name} ${ARGS_LINK_WITH} ${CLANG_LIBRARIES})
   if(WIN32 AND MSVC)
     set_target_properties(${_name} PROPERTIES DEBUG_OUTPUT_NAME ${_name}${CMAKE_DEBUG_POSTFIX}
                                               RELEASE_OUTPUT_NAME ${_name}${CMAKE_RELEASE_POSTFIX})
@@ -522,30 +562,38 @@ function(PCL_MAKE_PKGCONFIG _name)
   set(options HEADER_ONLY)
   set(oneValueArgs COMPONENT DESC CFLAGS LIB_FLAGS)
   set(multiValueArgs PCL_DEPS INT_DEPS EXT_DEPS)
-  cmake_parse_arguments(PKGCONFIG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(ARGS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments given to PCL_MAKE_PKGCONFIG: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
+
+  if(NOT ARGS_COMPONENT)
+    message(FATAL_ERROR "PCL_MAKE_PKGCONFIG requires parameter COMPONENT.")
+  endif()
 
   set(PKG_NAME ${_name})
-  set(PKG_DESC ${PKGCONFIG_DESC})
-  set(PKG_CFLAGS ${PKGCONFIG_CFLAGS})
-  set(PKG_LIBFLAGS ${PKGCONFIG_LIB_FLAGS})
-  LIST_TO_STRING(PKG_EXTERNAL_DEPS "${PKGCONFIG_EXT_DEPS}")
-  foreach(_dep ${PKGCONFIG_PCL_DEPS})
+  set(PKG_DESC ${ARGS_DESC})
+  set(PKG_CFLAGS ${ARGS_CFLAGS})
+  set(PKG_LIBFLAGS ${ARGS_LIB_FLAGS})
+  LIST_TO_STRING(PKG_EXTERNAL_DEPS "${ARGS_EXT_DEPS}")
+  foreach(_dep ${ARGS_PCL_DEPS})
     string(APPEND PKG_EXTERNAL_DEPS " pcl_${_dep}")
   endforeach()
   set(PKG_INTERNAL_DEPS "")
-  foreach(_dep ${PKGCONFIG_INT_DEPS})
+  foreach(_dep ${ARGS_INT_DEPS})
     string(APPEND PKG_INTERNAL_DEPS " -l${_dep}")
   endforeach()
 
   set(_pc_file ${CMAKE_CURRENT_BINARY_DIR}/${_name}.pc)
-  if(PKGCONFIG_HEADER_ONLY)
+  if(ARGS_HEADER_ONLY)
     configure_file(${PROJECT_SOURCE_DIR}/cmake/pkgconfig-headeronly.cmake.in ${_pc_file} @ONLY)
   else()
     configure_file(${PROJECT_SOURCE_DIR}/cmake/pkgconfig.cmake.in ${_pc_file} @ONLY)
   endif()
   install(FILES ${_pc_file}
           DESTINATION ${PKGCFG_INSTALL_DIR}
-          COMPONENT pcl_${PKGCONFIG_COMPONENT})
+          COMPONENT pcl_${ARGS_COMPONENT})
 endfunction()
 
 ###############################################################################
@@ -906,8 +954,8 @@ endmacro()
 # ARGN :
 #    see PCL_ADD_TEST documentation
 macro (PCL_ADD_COMPILETIME_AND_RUNTIME_TEST _name _exename)
-  PCL_ADD_TEST("${_name}_runtime" "${_exename}_runtime" ${ARGV})
+  PCL_ADD_TEST("${_name}_runtime" "${_exename}_runtime" ${ARGN})
   target_compile_definitions("${_exename}_runtime" PRIVATE PCL_RUN_TESTS_AT_COMPILE_TIME=false)
-  PCL_ADD_TEST("${_name}_compiletime" "${_exename}_compiletime" ${ARGV})
+  PCL_ADD_TEST("${_name}_compiletime" "${_exename}_compiletime" ${ARGN})
   target_compile_definitions("${_exename}_compiletime" PRIVATE PCL_RUN_TESTS_AT_COMPILE_TIME=true)
 endmacro()

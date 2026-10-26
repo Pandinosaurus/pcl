@@ -50,7 +50,11 @@
 #include <vtkVersion.h>
 #include <vtkPolyDataReader.h>
 #include <vtkRenderWindow.h>
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+#include <vtkTransformFilter.h>
+#else
 #include <vtkTransformPolyDataFilter.h>
+#endif
 #include <vtkDoubleArray.h>
 #include <vtkDataArray.h>
 #include <vtkPointData.h>
@@ -58,6 +62,7 @@
 #include <vtkHedgeHog.h>
 #include <vtkMatrix4x4.h>
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <thread>
 #include <vector>
@@ -85,9 +90,8 @@ class CallbackParameters
       viz_ (viz),
       points_ (points),
       normals_ (normals),
-      num_hypotheses_to_show_ (num_hypotheses_to_show),
-      show_models_ (true)
-    { }
+      num_hypotheses_to_show_ (num_hypotheses_to_show)
+    {}
 
     ObjRecRANSAC& objrec_;
     PCLVisualizer& viz_;
@@ -95,7 +99,7 @@ class CallbackParameters
     PointCloud<Normal>& normals_;
     int num_hypotheses_to_show_;
     std::list<vtkActor*> actors_, model_actors_;
-    bool show_models_;
+    bool show_models_{true};
 };
 
 //===============================================================================================================================
@@ -261,14 +265,14 @@ update (CallbackParameters* params)
   vtkIdType ids[2] = {0, 1};
 
   // Insert the points and compute the lines
-  for ( list<ObjRecRANSAC::OrientedPointPair>::const_iterator it = opps.begin () ; it != opps.end () ; ++it )
+  for ( const auto& opp : opps )
   {
-    vtk_opps_points->SetPoint (ids[0], it->p1_[0], it->p1_[1], it->p1_[2]);
-    vtk_opps_points->SetPoint (ids[1], it->p2_[0], it->p2_[1], it->p2_[2]);
+    vtk_opps_points->SetPoint (ids[0], opp.p1_[0], opp.p1_[1], opp.p1_[2]);
+    vtk_opps_points->SetPoint (ids[1], opp.p2_[0], opp.p2_[1], opp.p2_[2]);
     vtk_opps_lines->InsertNextCell (2, ids);
 
-    vtk_normals->SetTuple3 (ids[0], it->n1_[0], it->n1_[1], it->n1_[2]);
-    vtk_normals->SetTuple3 (ids[1], it->n2_[0], it->n2_[1], it->n2_[2]);
+    vtk_normals->SetTuple3 (ids[0], opp.n1_[0], opp.n1_[1], opp.n1_[2]);
+    vtk_normals->SetTuple3 (ids[1], opp.n2_[0], opp.n2_[1], opp.n2_[2]);
 
     ids[0] += 2;
     ids[1] += 2;
@@ -302,7 +306,7 @@ update (CallbackParameters* params)
   std::sort(accepted_hypotheses.begin (), accepted_hypotheses.end (), compareHypotheses);
 
   // Show the hypotheses
-  for ( std::vector<Hypothesis>::iterator acc_hypo = accepted_hypotheses.begin () ; i < params->num_hypotheses_to_show_ && acc_hypo != accepted_hypotheses.end () ; ++i, ++acc_hypo )
+  for ( auto acc_hypo = accepted_hypotheses.begin () ; i < params->num_hypotheses_to_show_ && acc_hypo != accepted_hypotheses.end () ; ++i, ++acc_hypo )
   {
     // Visualize the orientation as a tripod
     char frame_name[128];
@@ -321,7 +325,11 @@ update (CallbackParameters* params)
     vtkSmartPointer<vtkTransform> vtk_transform = vtkSmartPointer<vtkTransform>::New ();
     vtk_transform->SetMatrix (vtk_mat);
     // Setup the transformator
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+    vtkSmartPointer<vtkTransformFilter> vtk_transformator = vtkSmartPointer<vtkTransformFilter>::New ();
+#else
     vtkSmartPointer<vtkTransformPolyDataFilter> vtk_transformator = vtkSmartPointer<vtkTransformPolyDataFilter>::New ();
+#endif
     vtk_transformator->SetTransform (vtk_transform);
     vtk_transformator->SetInputData (vtk_model);
     vtk_transformator->Update ();
@@ -329,7 +337,11 @@ update (CallbackParameters* params)
     // Visualize
     vtkSmartPointer<vtkActor> vtk_actor = vtkSmartPointer<vtkActor>::New();
     vtkSmartPointer<vtkPolyDataMapper> vtk_mapper = vtkSmartPointer<vtkPolyDataMapper>::New ();
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+    vtk_mapper->SetInputData (vtk_transformator->GetPolyDataOutput ());
+#else
     vtk_mapper->SetInputData (vtk_transformator->GetOutput ());
+#endif
     vtk_actor->SetMapper(vtk_mapper);
     // Set the appearance & add to the renderer
     vtk_actor->GetProperty ()->SetColor (0.6, 0.7, 0.9);
@@ -383,7 +395,7 @@ update (CallbackParameters* params)
 void
 keyboardCB (const pcl::visualization::KeyboardEvent &event, void* params_void)
 {
-  CallbackParameters* params = static_cast<CallbackParameters*> (params_void);
+  auto* params = static_cast<CallbackParameters*> (params_void);
 
   if (event.getKeyCode () == 13 /*enter*/ && event.keyUp ())
     update (params);
@@ -392,7 +404,7 @@ keyboardCB (const pcl::visualization::KeyboardEvent &event, void* params_void)
     // Switch models visibility
     params->show_models_ = !params->show_models_;
 
-    for ( std::list<vtkActor*>::iterator it = params->model_actors_.begin () ; it != params->model_actors_.end () ; ++it )
+    for ( auto it = params->model_actors_.begin () ; it != params->model_actors_.end () ; ++it )
       (*it)->SetVisibility (static_cast<int> (params->show_models_));
 
     params->viz_.getRenderWindow ()->Render ();
@@ -469,7 +481,7 @@ main (int argc, char** argv)
 {
   printf ("\nUsage: ./obj_rec_ransac_accepted_hypotheses <pair_width> <voxel_size> <max_coplanarity_angle> <n_hypotheses_to_show> <show_hypotheses_as_coordinate_frames>\n\n");
 
-  const int num_params = 4;
+  constexpr int num_params = 4;
   float parameters[num_params] = {40.0f/*pair width*/, 5.0f/*voxel size*/, 15.0f/*max co-planarity angle*/, 1/*n_hypotheses_to_show*/};
   std::string parameter_names[num_params] = {"pair_width", "voxel_size", "max_coplanarity_angle", "n_hypotheses_to_show"};
 

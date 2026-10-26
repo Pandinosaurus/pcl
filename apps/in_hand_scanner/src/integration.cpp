@@ -49,15 +49,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pcl::ihs::Integration::Integration()
-: kd_tree_(new pcl::KdTreeFLANN<PointXYZ>())
-, max_squared_distance_(0.04f)
-, // 0.2cm
-max_angle_(45.f)
-, min_weight_(.3f)
-, max_age_(30)
-, min_directions_(5)
-{}
+pcl::ihs::Integration::Integration() : kd_tree_(new pcl::KdTreeFLANN<PointXYZ>()) {}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,11 +98,11 @@ pcl::ihs::Integration::reconstructMesh(const CloudXYZRGBNormalConstPtr& cloud_da
   }
   for (int r = 1; r < height; ++r) {
     for (int c = 0; c < 2; ++c) {
-      const PointXYZRGBNormal& pt_d = cloud_data->operator[](r* width + c);
+      const PointXYZRGBNormal& pt_d = cloud_data->operator[](r * width + c);
       const float weight = -pt_d.normal_z; // weight = -dot (normal, [0; 0; 1])
 
       if (!std::isnan(pt_d.x) && weight > min_weight_) {
-        cloud_model->operator[](r* width + c) = PointIHS(pt_d, weight);
+        cloud_model->operator[](r * width + c) = PointIHS(pt_d, weight);
       }
     }
   }
@@ -124,7 +116,7 @@ pcl::ihs::Integration::reconstructMesh(const CloudXYZRGBNormalConstPtr& cloud_da
   // *   3 - 0  //
   const int offset_1 = -width;
   const int offset_2 = -width - 1;
-  const int offset_3 = -1;
+  constexpr int offset_3 = -1;
   const int offset_4 = -width - 2;
 
   for (int r = 1; r < height; ++r) {
@@ -241,11 +233,11 @@ pcl::ihs::Integration::merge(const CloudXYZRGBNormalConstPtr& cloud_data,
   }
   for (int r = 1; r < height; ++r) {
     for (int c = 0; c < 2; ++c) {
-      const PointXYZRGBNormal& pt_d = cloud_data->operator[](r* width + c);
+      const PointXYZRGBNormal& pt_d = cloud_data->operator[](r * width + c);
       const float weight = -pt_d.normal_z; // weight = -dot (normal, [0; 0; 1])
 
       if (!std::isnan(pt_d.x) && weight > min_weight_) {
-        PointIHS& pt_d_t = cloud_data_transformed->operator[](r* width + c);
+        PointIHS& pt_d_t = cloud_data_transformed->operator[](r * width + c);
         pt_d_t = PointIHS(pt_d, weight);
         pt_d_t.getVector4fMap() = T * pt_d_t.getVector4fMap();
         pt_d_t.getNormalVector4fMap() = T * pt_d_t.getNormalVector4fMap();
@@ -262,7 +254,7 @@ pcl::ihs::Integration::merge(const CloudXYZRGBNormalConstPtr& cloud_data,
   // *   3 - 0  //
   const int offset_1 = -width;
   const int offset_2 = -width - 1;
-  const int offset_3 = -1;
+  constexpr int offset_3 = -1;
   const int offset_4 = -width - 2;
 
   const float dot_min = std::cos(max_angle_ * 17.45329252e-3); // deg to rad
@@ -506,7 +498,7 @@ pcl::ihs::Integration::addToMesh(const PointIHS& pt_0,
   // 2 - 1
   // |   |
   // 3 - 0
-  const unsigned char is_finite =
+  const auto is_finite =
       static_cast<unsigned char>((1 * !std::isnan(pt_0.x)) | (2 * !std::isnan(pt_1.x)) |
                                  (4 * !std::isnan(pt_2.x)) | (8 * !std::isnan(pt_3.x)));
 

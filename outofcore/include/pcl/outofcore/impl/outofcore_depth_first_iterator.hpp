@@ -47,8 +47,8 @@ namespace pcl
     template<typename PointT, typename ContainerT> 
     OutofcoreDepthFirstIterator<PointT, ContainerT>::OutofcoreDepthFirstIterator (OutofcoreOctreeBase<ContainerT, PointT>& octree_arg) 
     : OutofcoreIteratorBase<PointT, ContainerT> (octree_arg)
-    , currentChildIdx_ (0)
-    , stack_ (0)
+    , 
+     stack_ (0)
     {
       stack_.reserve (this->octree_.getTreeDepth ());
       OutofcoreIteratorBase<PointT,ContainerT>::reset ();
@@ -73,7 +73,7 @@ namespace pcl
 
         if (this->currentNode_->getNodeType () == pcl::octree::BRANCH_NODE)
         {
-          BranchNode* currentBranch = static_cast<BranchNode*> (this->currentNode_);
+          auto* currentBranch = static_cast<BranchNode*> (this->currentNode_);
           
           if (currentChildIdx_ < 8)
           {
@@ -107,10 +107,10 @@ namespace pcl
           if (!stack_.empty ())
           {
             std::pair<OutofcoreOctreeBaseNode<ContainerT, PointT>*, unsigned char>& stackEntry = stack_.back ();
-            stack_.pop_back ();
               
             this->currentNode_ = stackEntry.first;
             currentChildIdx_ = stackEntry.second;
+            stack_.pop_back (); // stackEntry is a reference, so pop_back after accessing it!
               
             //don't do anything with the keys here...
             this->currentOctreeDepth_--;
@@ -137,12 +137,12 @@ namespace pcl
         }
       }
         
-      return (*this);
+      return *this;
     }
 
     ////////////////////////////////////////////////////////////////////////////////
 
-  }//namesapce pcl
+  }//namespace pcl
 }//namespace outofcore
 
 #endif //PCL_OUTOFCORE_DEPTH_FIRST_ITERATOR_IMPL_H_

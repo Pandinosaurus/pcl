@@ -67,7 +67,7 @@ public:
   using ConstPtr = shared_ptr<const CorrespondenceRejectorSurfaceNormal>;
 
   /** \brief Empty constructor. Sets the threshold to 1.0. */
-  CorrespondenceRejectorSurfaceNormal() : threshold_(1.0)
+  CorrespondenceRejectorSurfaceNormal()
   {
     rejection_name_ = "CorrespondenceRejectorSurfaceNormal";
   }
@@ -167,7 +167,7 @@ public:
    */
   template <typename PointT>
   inline void
-  setSearchMethodTarget(const typename pcl::search::KdTree<PointT>::Ptr& tree,
+  setSearchMethodTarget(const typename pcl::search::Search<PointT>::Ptr& tree,
                         bool force_no_recompute = false)
   {
     static_pointer_cast<DataContainer<PointT>>(data_container_)
@@ -342,7 +342,7 @@ protected:
 
   /** \brief The median distance threshold between two correspondent points in source
    * <-> target. */
-  double threshold_;
+  double threshold_{1.0};
 
   using DataContainerPtr = DataContainerInterface::Ptr;
   /** \brief A pointer to the DataContainer object containing the input and target point

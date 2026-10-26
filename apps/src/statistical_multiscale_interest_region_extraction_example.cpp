@@ -39,11 +39,12 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
 
 using namespace pcl;
 
-const float subsampling_leaf_size = 0.003f;
-const float base_scale = 0.005f;
+constexpr float subsampling_leaf_size = 0.003f;
+constexpr float base_scale = 0.005f;
 
 int
 main(int, char** argv)

@@ -2,21 +2,18 @@ set(SUBSUBSYS_NAME tools)
 set(SUBSUBSYS_DESC "Kinfu large scale tools")
 set(SUBSUBSYS_DEPS gpu_kinfu_large_scale visualization)
 set(SUBSUBSYS_OPT_DEPS )
-set(EXT_DEPS openni openni2)
+set(EXT_DEPS glew openni openni2)
 set(DEFAULT TRUE)
 set(REASON "")
 
 PCL_SUBSUBSYS_OPTION(build ${SUBSYS_NAME} ${SUBSUBSYS_NAME} ${SUBSUBSYS_DESC} ${DEFAULT} ${REASON})
-PCL_SUBSUBSYS_DEPEND(build ${SUBSUBSYS_NAME} DEPS ${SUBSUBSYS_DEPS} OPT_DEPS ${SUBSUBSYS_OPT_DEPS} EXT_DEPS ${EXT_DEPS})
+PCL_SUBSYS_DEPEND(build NAME ${SUBSUBSYS_NAME} PARENT_NAME ${SUBSYS_NAME} DEPS ${SUBSUBSYS_DEPS} OPT_DEPS ${SUBSUBSYS_OPT_DEPS} EXT_DEPS ${EXT_DEPS})
 
 if(NOT build)
   return()
 endif()
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
-
 file(GLOB hdrs "*.h*")
-include_directories(SYSTEM ${VTK_INCLUDE_DIRS})
 
 ## STANDALONE TEXTURE MAPPING
 set(the_target pcl_kinfu_largeScale_texture_output)

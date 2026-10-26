@@ -48,6 +48,7 @@
 #include <pcl/io/openni_grabber.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
+#include <pcl/search/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/segmentation/extract_polygonal_prism_data.h>
 #include <pcl/segmentation/sac_segmentation.h>
@@ -82,7 +83,7 @@
     double end_time = pcl::getTime();                                                  \
     static unsigned count = 0;                                                         \
     if (++count == 10) {                                                               \
-      std::cout << "Average framerate(" << _WHAT_ << "): "                             \
+      std::cout << "Average framerate(" << (_WHAT_) << "): "                             \
                 << double(count) / double(duration) << " Hz" << std::endl;             \
       count = 0;                                                                       \
       duration = 0.0;                                                                  \
@@ -121,9 +122,7 @@ public:
                         bool use_fixed)
   : viewer_("PCL OpenNI Tracking Viewer")
   , device_id_(device_id)
-  , new_cloud_(false)
   , ne_(thread_nr)
-  , counter_(0)
   , use_convex_hull_(use_convex_hull)
   , visualize_non_downsample_(visualize_non_downsample)
   , visualize_particles_(visualize_particles)
@@ -339,7 +338,9 @@ public:
     FPS_CALC_BEGIN;
     double start = pcl::getTime();
     pcl::VoxelGrid<PointType> grid;
-    grid.setLeafSize(float(leaf_size), float(leaf_size), float(leaf_size));
+    grid.setLeafSize(static_cast<float>(leaf_size),
+                     static_cast<float>(leaf_size),
+                     static_cast<float>(leaf_size));
     grid.setInputCloud(cloud);
     grid.filter(result);
     double end = pcl::getTime();
@@ -549,11 +550,12 @@ public:
           double segment_distance = c[0] * c[0] + c[1] * c[1];
           for (std::size_t i = 1; i < cluster_indices.size(); i++) {
             temp_cloud.reset(new Cloud);
-            extractSegmentCluster(target_cloud, cluster_indices, int(i), *temp_cloud);
+            extractSegmentCluster(
+                target_cloud, cluster_indices, static_cast<int>(i), *temp_cloud);
             pcl::compute3DCentroid<RefPointType>(*temp_cloud, c);
             double distance = c[0] * c[0] + c[1] * c[1];
             if (distance < segment_distance) {
-              segment_index = int(i);
+              segment_index = static_cast<int>(i);
               segment_distance = distance;
             }
           }
@@ -601,7 +603,7 @@ public:
   void
   run()
   {
-    pcl::OpenNIGrabber interface{device_id_};
+    pcl::OpenNIGrabber interface(device_id_);
     std::function<void(const CloudConstPtr&)> f = [this](const CloudConstPtr& cloud) {
       cloud_cb(cloud);
     };
@@ -630,10 +632,10 @@ public:
 
   std::string device_id_;
   std::mutex mtx_;
-  bool new_cloud_;
+  bool new_cloud_{false};
   pcl::NormalEstimationOMP<PointType, pcl::Normal> ne_; // to store threadpool
   ParticleFilter::Ptr tracker_;
-  int counter_;
+  int counter_{0};
   bool use_convex_hull_;
   bool visualize_non_downsample_;
   bool visualize_particles_;
@@ -646,46 +648,49 @@ public:
 void
 usage(char** argv)
 {
-  // clang-format off
-  std::cout << "usage: " << argv[0] << " <device_id> [-C] [-g]\n\n";
-  std::cout << "  -C:  initialize the pointcloud to track without plane segmentation\n";
-  std::cout << "  -D: visualizing with non-downsampled pointclouds.\n";
-  std::cout << "  -P: not visualizing particle cloud.\n";
-  std::cout << "  -fixed: use the fixed number of the particles.\n";
-  std::cout << "  -d <value>: specify the grid size of downsampling (defaults to 0.01)." << std::endl;
-  // clang-format on
+  // clang format off
+  std::cout
+      << "usage: " << argv[0] << " [options]\n\n"
+      << "where options are:\n"
+      << "    -device_id device_id: specify the device id (defaults to \"#1\").\n"
+      << "    -C: initialize the pointcloud to track without plane segmentation.\n"
+      << "    -D: visualizing with non-downsampled pointclouds.\n"
+      << "    -P: not visualizing particle cloud.\n"
+      << "    -fixed: use the fixed number of the particles.\n"
+      << "    -d: specify the grid size of downsampling (defaults to 0.01).";
+  // clang format on
 }
 
 int
 main(int argc, char** argv)
 {
+  /////////////////////////////////////////////////////////////////////
+  if (pcl::console::find_argument(argc, argv, "-h") != -1 ||
+      pcl::console::find_argument(argc, argv, "--help") != -1) {
+    usage(argv);
+    return 1;
+  }
+
+  std::string device_id;
   bool use_convex_hull = true;
   bool visualize_non_downsample = false;
   bool visualize_particles = true;
   bool use_fixed = false;
-
   double downsampling_grid_size = 0.01;
 
-  if (pcl::console::find_argument(argc, argv, "-C") > 0)
+  if (pcl::console::parse_argument(argc, argv, "-device_id", device_id) == -1 &&
+      argc > 1 && argv[1][0] != '-')
+    device_id = argv[1];
+  if (pcl::console::find_argument(argc, argv, "-C") != -1)
     use_convex_hull = false;
-  if (pcl::console::find_argument(argc, argv, "-D") > 0)
+  if (pcl::console::find_argument(argc, argv, "-D") != -1)
     visualize_non_downsample = true;
-  if (pcl::console::find_argument(argc, argv, "-P") > 0)
+  if (pcl::console::find_argument(argc, argv, "-P") != -1)
     visualize_particles = false;
-  if (pcl::console::find_argument(argc, argv, "-fixed") > 0)
+  if (pcl::console::find_argument(argc, argv, "-fixed") != -1)
     use_fixed = true;
   pcl::console::parse_argument(argc, argv, "-d", downsampling_grid_size);
-  if (argc < 2) {
-    usage(argv);
-    exit(1);
-  }
-
-  std::string device_id = std::string(argv[1]);
-
-  if (device_id == "--help" || device_id == "-h") {
-    usage(argv);
-    exit(1);
-  }
+  /////////////////////////////////////////////////////////////////////
 
   // open kinect
   OpenNISegmentTracking<pcl::PointXYZRGBA> v(device_id,

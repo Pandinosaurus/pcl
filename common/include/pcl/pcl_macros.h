@@ -48,11 +48,9 @@
 #endif
 
 #if defined _MSC_VER
-  // 4244 : conversion from 'type1' to 'type2', possible loss of data
-  // 4661 : no suitable definition provided for explicit template instantiation reques
   // 4503 : decorated name length exceeded, name was truncated
   // 4146 : unary minus operator applied to unsigned type, result still unsigned
-  #pragma warning (disable: 4018 4244 4267 4521 4251 4661 4305 4503 4146)
+  #pragma warning (disable: 4018 4521 4251 4305 4503 4146)
 #endif
 
 #ifndef _USE_MATH_DEFINES
@@ -82,7 +80,7 @@
 // MSVC < 2019 have issues:
 // * can't short-circuiting logic in macros
 // * don't define standard macros
-// => this leads to annyoing C4067 warnings (see https://developercommunity.visualstudio.com/content/problem/327796/-has-cpp-attribute-emits-warning-is-wrong-highligh.html)
+// => this leads to annoying C4067 warnings (see https://developercommunity.visualstudio.com/content/problem/327796/-has-cpp-attribute-emits-warning-is-wrong-highligh.html)
 #if defined(_MSC_VER)
   // nvcc on msvc can't work with [[deprecated]]
   #if !defined(__CUDACC__)
@@ -108,7 +106,7 @@
 
 // Macro for emitting pragma warning for deprecated headers
 #if (defined (__GNUC__) || defined(__clang__))
-  #define _PCL_DEPRECATED_HEADER_IMPL(Message) PCL_PRAGMA (GCC warning Message)
+  #define _PCL_DEPRECATED_HEADER_IMPL(Message) PCL_PRAGMA (message Message)
 #elif _MSC_VER
   #define _PCL_DEPRECATED_HEADER_IMPL(Message) PCL_PRAGMA (warning (Message))
 #else
@@ -116,11 +114,13 @@
   #define _PCL_DEPRECATED_HEADER_IMPL(Message)
 #endif
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 /**
  * \brief A handy way to inform the user of the removal deadline
  */
 #define _PCL_PREPARE_REMOVAL_MESSAGE(Major, Minor, Msg)                                 \
   Msg " (It will be removed in PCL " BOOST_PP_STRINGIZE(Major.Minor) ")"
+// NOLINTEND(bugprone-macro-parentheses)
 
 /**
  * \brief Tests for Minor < PCL_MINOR_VERSION
@@ -214,8 +214,7 @@
     #define NOMINMAX
   #endif
 
-  #define __PRETTY_FUNCTION__ __FUNCTION__
-  #define __func__ __FUNCTION__
+  #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
 #endif // defined _WIN32
 
@@ -294,18 +293,18 @@ pcl_round (float number)
 #endif
 
 #define FIXED(s) \
-  std::fixed << s << std::resetiosflags(std::ios_base::fixed)
+  std::fixed << (s) << std::resetiosflags(std::ios_base::fixed)
 
 #ifndef ERASE_STRUCT
-#define ERASE_STRUCT(var) memset(&var, 0, sizeof(var))
+#define ERASE_STRUCT(var) memset(&(var), 0, sizeof(var))
 #endif
 
 #ifndef ERASE_ARRAY
-#define ERASE_ARRAY(var, size) memset(var, 0, size*sizeof(*var))
+#define ERASE_ARRAY(var, size) memset(var, 0, (size)*sizeof(*(var)))
 #endif
 
 #ifndef SET_ARRAY
-#define SET_ARRAY(var, value, size) { for (decltype(size) i = 0; i < size; ++i) var[i]=value; }
+#define SET_ARRAY(var, value, size) { for (decltype(size) i = 0; i < (size); ++i) (var)[i]=value; }
 #endif
 
 #ifndef PCL_EXTERN_C
@@ -323,7 +322,11 @@ pcl_round (float number)
         #define PCL_EXPORTS
     #endif
 #else
-    #define PCL_EXPORTS
+    #ifdef PCL_SYMBOL_VISIBILITY_HIDDEN
+        #define PCL_EXPORTS __attribute__ ((visibility ("default")))
+    #else
+        #define PCL_EXPORTS
+    #endif
 #endif
 
 #if defined WIN32 || defined _WIN32

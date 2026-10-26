@@ -33,7 +33,7 @@
 
 #ifndef METS_SIMULATED_ANNEALING_HH_
 #define METS_SIMULATED_ANNEALING_HH_
-
+//NOLINTBEGIN
 namespace mets {
 
   /// @defgroup simulated_annealing Simulated Annealing
@@ -232,7 +232,7 @@ mets::simulated_annealing<move_manager_t>::search()
 	.cost_function();*/
 
       base_t::moves_m.refresh(base_t::working_solution_m);
-      for(typename move_manager_t::iterator movit = base_t::moves_m.begin(); 
+      for(auto movit = base_t::moves_m.begin(); 
           movit != base_t::moves_m.end(); ++movit)
       {
         // apply move and record proposed cost function
@@ -271,4 +271,5 @@ mets::simulated_annealing<move_manager_t>::search()
       cooling_schedule_m(current_temp_m, base_t::working_solution_m);
     }
 }
+//NOLINTEND
 #endif

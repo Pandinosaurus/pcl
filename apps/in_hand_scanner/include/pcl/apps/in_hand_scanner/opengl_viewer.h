@@ -46,7 +46,7 @@
 #include <pcl/pcl_exports.h>
 #include <pcl/pcl_macros.h>
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 
 #include <iomanip>
 #include <mutex>
@@ -57,7 +57,7 @@ namespace pcl {
 namespace ihs {
 namespace detail {
 /** \brief Mesh format more efficient for visualization than the half-edge data
- * structure. \see http://en.wikipedia.org/wiki/Polygon_mesh#Face-vertex_meshes
+ * structure. \see https://en.wikipedia.org/wiki/Polygon_mesh#Face-vertex_meshes
  *
  * \note Only triangles are currently supported.
  */
@@ -102,7 +102,7 @@ public:
  * \note Currently you have to derive from this class to use it. Implement the
  * paintEvent: Call the paint event of this class and declare a QPainter.
  */
-class PCL_EXPORTS OpenGLViewer : public QGLWidget {
+class PCL_EXPORTS OpenGLViewer : public QOpenGLWidget {
   Q_OBJECT
 
 public:
@@ -118,7 +118,7 @@ public:
   /** \brief How to draw the mesh. */
   enum MeshRepresentation {
     MR_POINTS, /**< Draw the points. */
-    MR_EDGES,  /**< Wireframe represen of the mesh. */
+    MR_EDGES,  /**< Wireframe representation of the mesh. */
     MR_FACES   /**< Draw the faces of the mesh without edges. */
   };
 
@@ -174,7 +174,7 @@ public:
   explicit OpenGLViewer(QWidget* parent = nullptr);
 
   /** \brief Destructor. */
-  ~OpenGLViewer();
+  ~OpenGLViewer() override;
 
   /** \brief Add a mesh to be drawn.
    *
@@ -302,7 +302,7 @@ protected:
   /** \brief Please have a look at the documentation of calcFPS. */
   class FPS {
   public:
-    FPS() : fps_(0.) {}
+    FPS() = default;
 
     inline double&
     value()
@@ -324,10 +324,10 @@ protected:
     }
 
   protected:
-    ~FPS() {}
+    ~FPS() = default;
 
   private:
-    double fps_;
+    double fps_{0.};
   };
 
   /** Measures the performance of the current thread (selected by passing the
@@ -431,25 +431,25 @@ private:
   Colormap colormap_;
 
   /** \brief The visibility confidence is normalized with this value. */
-  float vis_conf_norm_;
+  float vis_conf_norm_{1};
 
   /** \brief Meshes stored for visualization. */
   FaceVertexMeshMap drawn_meshes_;
 
   /** \brief How to draw the mesh. */
-  MeshRepresentation mesh_representation_;
+  MeshRepresentation mesh_representation_{MR_POINTS};
 
   /** \brief How to color the shapes. */
-  Coloring coloring_;
+  Coloring coloring_{COL_RGB};
 
   /** \brief A box is drawn if this value is true. */
-  bool draw_box_;
+  bool draw_box_{false};
 
   /** \brief Coefficients of the drawn box. */
   BoxCoefficients box_coefficients_;
 
   /** \brief Scaling factor to convert from meters to the unit of the drawn files. */
-  double scaling_factor_;
+  double scaling_factor_{1.};
 
   /** \brief Rotation of the camera. */
   Eigen::Quaterniond R_cam_;
@@ -465,13 +465,13 @@ private:
 
   /** \brief Set to true right after the mouse got pressed and false if the mouse got
    * moved. */
-  bool mouse_pressed_begin_;
+  bool mouse_pressed_begin_{false};
 
   /** \brief Mouse x-position of the previous mouse move event. */
-  int x_prev_;
+  int x_prev_{0};
 
   /** \brief Mouse y-position of the previous mouse move event. */
-  int y_prev_;
+  int y_prev_{0};
 
 public:
   PCL_MAKE_ALIGNED_OPERATOR_NEW

@@ -138,12 +138,21 @@ public:
                                       (!!(this->z & depthMask)));
   }
 
-  /* \brief maximum depth that can be addressed */
+  PCL_DEPRECATED(1, 18, "Use getMaxDepth() instead.")
   static const unsigned char maxDepth =
       static_cast<unsigned char>(sizeof(uindex_t) * 8);
 
-  // Indices addressing a voxel at (X, Y, Z)
+  static unsigned char
+  getMaxDepth()
+  {
+    /* \brief maximum depth that can be addressed */
+    static const unsigned char maxDepth{
+        static_cast<unsigned char>(sizeof(uindex_t) * 8)};
+    return maxDepth;
+  }
 
+  // Indices addressing a voxel at (X, Y, Z)
+  // NOLINTBEGIN(modernize-use-default-member-init)
   union {
     struct {
       uindex_t x;
@@ -152,6 +161,7 @@ public:
     };
     uindex_t key_[3];
   };
+  // NOLINTEND(modernize-use-default-member-init)
 };
 } // namespace octree
 } // namespace pcl

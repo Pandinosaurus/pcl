@@ -68,7 +68,7 @@ public:
   using ConstPtr = shared_ptr<const CorrespondenceRejectorMedianDistance>;
 
   /** \brief Empty constructor. */
-  CorrespondenceRejectorMedianDistance() : median_distance_(0), factor_(1.0)
+  CorrespondenceRejectorMedianDistance()
   {
     rejection_name_ = "CorrespondenceRejectorMedianDistance";
   }
@@ -157,7 +157,7 @@ public:
    */
   template <typename PointT>
   inline void
-  setSearchMethodTarget(const typename pcl::search::KdTree<PointT>::Ptr& tree,
+  setSearchMethodTarget(const typename pcl::search::Search<PointT>::Ptr& tree,
                         bool force_no_recompute = false)
   {
     static_pointer_cast<DataContainer<PointT>>(data_container_)
@@ -193,12 +193,12 @@ protected:
   /** \brief The median distance threshold between two correspondent points in source
    * <-> target.
    */
-  double median_distance_;
+  double median_distance_{0.0};
 
   /** \brief The factor for correspondence rejection. Points with distance greater than
    * median times factor will be rejected
    */
-  double factor_;
+  double factor_{1.0};
 
   using DataContainerPtr = DataContainerInterface::Ptr;
 

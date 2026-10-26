@@ -94,7 +94,7 @@ namespace pcl
       /** \brief Get the value of the internal \a sample parameter.
         */
       inline unsigned int
-      getSample ()
+      getSample () const
       {
         return (sample_);
       }
@@ -111,7 +111,7 @@ namespace pcl
       /** \brief Get the value of the internal \a seed parameter.
         */
       inline unsigned int
-      getSeed ()
+      getSeed () const
       {
         return (seed_);
       }
@@ -135,7 +135,7 @@ namespace pcl
       inline float
       unifRand ()
       {
-        return (static_cast<float>(rand () / double (RAND_MAX)));
+        return (static_cast<float>(rand () / static_cast<double>(RAND_MAX)));
         //return (((214013 * seed_ + 2531011) >> 16) & 0x7FFF);
       }
   };
@@ -179,7 +179,7 @@ namespace pcl
       /** \brief Get the value of the internal \a sample parameter.
         */
       inline unsigned int
-      getSample ()
+      getSample () const
       {
         return (sample_);
       }
@@ -196,7 +196,7 @@ namespace pcl
       /** \brief Get the value of the internal \a seed parameter.
         */
       inline unsigned int
-      getSeed ()
+      getSeed () const
       {
         return (seed_);
       }
@@ -226,7 +226,7 @@ namespace pcl
       inline float
       unifRand ()
       {
-        return (static_cast<float> (rand () / double (RAND_MAX)));
+        return (static_cast<float> (rand () / static_cast<double>(RAND_MAX)));
       }
    };
 }

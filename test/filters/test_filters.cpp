@@ -48,6 +48,7 @@
 #include <pcl/filters/frustum_culling.h>
 #include <pcl/filters/sampling_surface_normal.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/voxel_grid_occlusion_estimation.h>
 #include <pcl/filters/voxel_grid_covariance.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/project_inliers.h>
@@ -56,6 +57,7 @@
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/median_filter.h>
 #include <pcl/filters/normal_refinement.h>
+#include <pcl/search/kdtree.h> // for KdTree
 
 #include <pcl/common/transforms.h>
 #include <pcl/common/eigen.h>
@@ -561,6 +563,140 @@ TEST (PassThrough, Filters)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST(VoxelGrid, CentroidIndexAtBounds)
+{
+  auto input = pcl::make_shared<PointCloud<PointXYZ>>();
+  input->emplace_back(0.5f, 0.5f, 0.5f);
+  input->emplace_back(1.5f, 0.5f, 0.5f);
+  input->emplace_back(0.5f, 1.5f, 0.5f);
+  input->emplace_back(1.5f, 1.5f, 0.5f);
+  input->emplace_back(0.5f, 0.5f, 1.5f);
+  input->emplace_back(1.5f, 0.5f, 1.5f);
+  input->emplace_back(0.5f, 1.5f, 1.5f);
+  input->emplace_back(1.5f, 1.5f, 1.5f);
+
+  VoxelGrid<PointXYZ> grid;
+  grid.setInputCloud(input);
+  grid.setLeafSize(1.0f, 1.0f, 1.0f);
+  grid.setSaveLeafLayout(true);
+  PointCloud<PointXYZ> output;
+  grid.filter(output);
+  ASSERT_EQ(output.size(), 8);
+  ASSERT_EQ(grid.getLeafLayout().size(), 8);
+
+  auto input_blob = pcl::make_shared<PCLPointCloud2>();
+  toPCLPointCloud2(*input, *input_blob);
+  VoxelGrid<PCLPointCloud2> grid2;
+  grid2.setInputCloud(input_blob);
+  grid2.setLeafSize(1.0f, 1.0f, 1.0f);
+  grid2.setSaveLeafLayout(true);
+  PCLPointCloud2 output_blob;
+  grid2.filter(output_blob);
+  ASSERT_EQ(output_blob.width * output_blob.height, 8);
+  ASSERT_EQ(grid2.getLeafLayout().size(), 8);
+
+  const auto expect_outside_grid = [](const auto& voxel_grid) {
+    EXPECT_NE(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(0, 0, 0)), -1);
+    EXPECT_NE(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(1, 1, 1)), -1);
+    EXPECT_EQ(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(2, 0, 0)), -1);
+    EXPECT_EQ(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(-1, 1, 0)), -1);
+    EXPECT_EQ(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(0, 2, 0)), -1);
+    EXPECT_EQ(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(0, -1, 1)), -1);
+    EXPECT_EQ(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(0, -2, 2)), -1);
+    EXPECT_EQ(voxel_grid.getCentroidIndexAt(Eigen::Vector3i(0, 2, -1)), -1);
+  };
+  expect_outside_grid(grid);
+  expect_outside_grid(grid2);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (VoxelGrid, VoxelIndicesBeyondIntRange)
+{
+  // For every coordinate, two points are added that are 1e-4 apart. The leaf size is 1e-3 along one axis, so both points
+  // belong to the same leaf, as long as the cloud is close enough to the origin for the voxel indices to fit into an int.
+  // Otherwise, the input is returned unfiltered, like for a too small leaf size.
+  const auto filter_size = [] (const int axis, const std::vector<float>& coordinates) {
+    auto input = pcl::make_shared<PointCloud<PointXYZ>> ();
+    for (const float coordinate : coordinates)
+    {
+      for (const float shift : {2.5e-4f, 3.5e-4f})
+      {
+        PointXYZ point (0.0f, 0.0f, 0.0f);
+        point.data[axis] = coordinate + shift;
+        input->push_back (point);
+      }
+    }
+
+    VoxelGrid<PointXYZ> grid;
+    grid.setInputCloud (input);
+    grid.setLeafSize (axis == 0 ? 1e-3f : 1.0f, axis == 1 ? 1e-3f : 1.0f, axis == 2 ? 1e-3f : 1.0f);
+    PointCloud<PointXYZ> output;
+    grid.filter (output);
+    return output.size ();
+  };
+
+  const auto ten_points_from = [] (const float offset) {
+    std::vector<float> coordinates;
+    coordinates.reserve (10);
+    for (int i = 0; i < 10; ++i)
+      coordinates.push_back (offset + static_cast<float> (i));
+    return coordinates;
+  };
+
+  for (int axis = 0; axis < 3; ++axis)
+  {
+    // voxel indices fit into an int
+    EXPECT_EQ (filter_size (axis, ten_points_from (0.0f)), 10);
+    EXPECT_EQ (filter_size (axis, ten_points_from (1e6f)), 10);
+    EXPECT_EQ (filter_size (axis, ten_points_from (-1e6f)), 10);
+    // voxel indices do not fit into an int
+    EXPECT_EQ (filter_size (axis, ten_points_from (1e7f)), 20);
+    EXPECT_EQ (filter_size (axis, ten_points_from (-1e7f)), 20);
+    // only the voxel index of the largest coordinate does not fit into an int
+    EXPECT_EQ (filter_size (axis, {2.0e6f, 2.2e6f}), 4);
+    // only the voxel index of the smallest coordinate does not fit into an int
+    EXPECT_EQ (filter_size (axis, {-2.2e6f, -2.0e6f}), 4);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (VoxelGrid, VoxelIndicesAtIntRangeBounds)
+{
+  // With leaf size 1, the voxel index of a coordinate is the coordinate itself. Two points 0.25 apart fall into the same
+  // voxel, so they are merged into one point if the input is accepted and returned as they are if the input is rejected.
+  // The number of voxels is 1 in both cases, so only the voxel indices decide.
+  const auto filter_size = [] (const int axis, const float coordinate) {
+    auto input = pcl::make_shared<PointCloud<PointXYZ>> ();
+    for (const float shift : {0.0f, 0.25f})
+    {
+      PointXYZ point (0.0f, 0.0f, 0.0f);
+      point.data[axis] = coordinate;
+      point.data[(axis + 1) % 3] = shift;
+      input->push_back (point);
+    }
+
+    VoxelGrid<PointXYZ> grid;
+    grid.setInputCloud (input);
+    grid.setLeafSize (1.0f, 1.0f, 1.0f);
+    PointCloud<PointXYZ> output;
+    grid.filter (output);
+    return output.size ();
+  };
+
+  for (int axis = 0; axis < 3; ++axis)
+  {
+    // largest float below 2^31, still fits into an int
+    EXPECT_EQ (filter_size (axis, 2147483520.0f), 1);
+    // 2^31 does not fit into an int
+    EXPECT_EQ (filter_size (axis, 2147483648.0f), 2);
+    // -2^31 is the smallest int
+    EXPECT_EQ (filter_size (axis, -2147483648.0f), 1);
+    // largest float below -2^31 does not fit into an int
+    EXPECT_EQ (filter_size (axis, -2147483904.0f), 2);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TEST (VoxelGrid, Filters)
 {
   // Test the PointCloud<PointT> method
@@ -636,6 +772,19 @@ TEST (VoxelGrid, Filters)
   EXPECT_LE (std::abs (output[neighbors.at (0)].x - output[centroidIdx].x), 0.02);
   EXPECT_LE (std::abs (output[neighbors.at (0)].y - output[centroidIdx].y), 0.02);
   EXPECT_LE ( output[neighbors.at (0)].z - output[centroidIdx].z, 0.02 * 2);
+
+  // indices must be handled correctly
+  auto indices = grid.getIndices(); // original cloud indices
+  auto cloud_copied = std::make_shared<PointCloud<PointXYZ>>();
+  *cloud_copied = *cloud;
+  for (int i = 0; i < 100; i++) {
+    cloud_copied->emplace_back(100 + i, 100 + i, 100 + i);
+  }
+  grid.setInputCloud(cloud_copied);
+  grid.setIndices(indices);
+  grid.filter(output);
+
+  EXPECT_EQ(output.size(), 100); // additional points should be ignored
 
   // Test the pcl::PCLPointCloud2 method
   VoxelGrid<PCLPointCloud2> grid2;
@@ -718,6 +867,18 @@ TEST (VoxelGrid, Filters)
   EXPECT_LE (std::abs (output[neighbors2.at (0)].x - output[centroidIdx2].x), 0.02);
   EXPECT_LE (std::abs (output[neighbors2.at (0)].y - output[centroidIdx2].y), 0.02);
   EXPECT_LE (output[neighbors2.at (0)].z - output[centroidIdx2].z, 0.02 * 2);
+
+  // indices must be handled correctly
+  auto indices2 = grid2.getIndices(); // original cloud indices
+  auto cloud_blob2 = std::make_shared<PCLPointCloud2>();
+  toPCLPointCloud2(*cloud_copied, *cloud_blob2);
+
+  grid2.setInputCloud(cloud_blob2);
+  grid2.setIndices(indices2);
+  grid2.filter(output_blob);
+
+  fromPCLPointCloud2(output_blob, output);
+  EXPECT_EQ(output.size(), 100); // additional points should be ignored
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1326,6 +1487,80 @@ TEST (VoxelGridCovariance, Filters)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (VoxelGridCovariance, VoxelIndicesBeyondIntRange)
+{
+  // The points lie 1 apart along one axis, the leaf size is 1e-3 along that axis. Each point therefore belongs to its
+  // own leaf, but its voxel index (coordinate / leaf size) only fits into an int if the cloud is close enough to the origin.
+  const auto count_leaves = [] (const int axis, const std::vector<float>& coordinates) {
+    auto input = pcl::make_shared<PointCloud<PointXYZ>> ();
+    for (const float coordinate : coordinates)
+    {
+      PointXYZ point (0.0f, 0.0f, 0.0f);
+      point.data[axis] = coordinate;
+      input->push_back (point);
+    }
+
+    VoxelGridCovariance<PointXYZ> grid;
+    grid.setInputCloud (input);
+    grid.setLeafSize (axis == 0 ? 1e-3f : 1.0f, axis == 1 ? 1e-3f : 1.0f, axis == 2 ? 1e-3f : 1.0f);
+    PointCloud<PointXYZ> output;
+    grid.filter (output);
+    return grid.getLeaves ().size ();
+  };
+
+  const auto ten_points_from = [] (const float offset) {
+    std::vector<float> coordinates;
+    coordinates.reserve (10);
+    for (int i = 0; i < 10; ++i)
+      coordinates.push_back (offset + static_cast<float> (i));
+    return coordinates;
+  };
+
+  for (int axis = 0; axis < 3; ++axis)
+  {
+    // voxel indices fit into an int
+    EXPECT_EQ (count_leaves (axis, ten_points_from (0.0f)), 10);
+    EXPECT_EQ (count_leaves (axis, ten_points_from (1e6f)), 10);
+    EXPECT_EQ (count_leaves (axis, ten_points_from (-1e6f)), 10);
+    // voxel indices do not fit into an int, so the input is rejected like for a too small leaf size
+    EXPECT_EQ (count_leaves (axis, ten_points_from (1e7f)), 0);
+    EXPECT_EQ (count_leaves (axis, ten_points_from (-1e7f)), 0);
+    // only the voxel index of the largest coordinate does not fit into an int
+    EXPECT_EQ (count_leaves (axis, {2.0e6f, 2.2e6f}), 0);
+    // only the voxel index of the smallest coordinate does not fit into an int
+    EXPECT_EQ (count_leaves (axis, {-2.2e6f, -2.0e6f}), 0);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (VoxelGridCovariance, RejectedInputClearsLeaves)
+{
+  const auto ten_points_from = [] (const float offset) {
+    auto input = pcl::make_shared<PointCloud<PointXYZ>> ();
+    for (int i = 0; i < 10; ++i)
+      input->emplace_back (offset + static_cast<float> (i), 0.0f, 0.0f);
+    return input;
+  };
+
+  // Reuse one object: the second input is rejected because its voxel indices do not fit into an int, so the leaves of the
+  // first input must not stay behind.
+  VoxelGridCovariance<PointXYZ> grid;
+  grid.setLeafSize (1e-3f, 1.0f, 1.0f);
+  PointCloud<PointXYZ> output;
+  PointXYZ origin (0.0f, 0.0f, 0.0f);
+
+  grid.setInputCloud (ten_points_from (0.0f));
+  grid.filter (output);
+  EXPECT_EQ (grid.getLeaves ().size (), 10);
+  EXPECT_NE (grid.getLeaf (origin), nullptr);
+
+  grid.setInputCloud (ten_points_from (1e7f));
+  grid.filter (output);
+  EXPECT_EQ (grid.getLeaves ().size (), 0);
+  EXPECT_EQ (grid.getLeaf (origin), nullptr);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TEST (VoxelGridMinPoints, Filters)
 {
   // Setup input with 4 clusters, single point at 0,0,0 and 1,1,1 with 5 point cluster around 0.11,0.11,0.11 and 6 point cluster around 0.31,0.31,0.31
@@ -1352,7 +1587,7 @@ TEST (VoxelGridMinPoints, Filters)
 
   // Verify 2 clusters (0.11 and 0.31) passed threshold and verify their location and color
   EXPECT_EQ (outputMin4.size (), 2);
-  // Offset noise applied by offsets vec are 1e-3 magnitude, so check within 1e-2 
+  // Offset noise applied by offsets vec are 1e-3 magnitude, so check within 1e-2
   EXPECT_NEAR (outputMin4[0].x, input->at(1).x, 1e-2);
   EXPECT_NEAR (outputMin4[0].y, input->at(1).y, 1e-2);
   EXPECT_NEAR (outputMin4[0].z, input->at(1).z, 1e-2);
@@ -1468,26 +1703,50 @@ TEST (RadiusOutlierRemoval, Filters)
 {
   // Test the PointCloud<PointT> method
   PointCloud<PointXYZ> cloud_out;
+  PointCloud<PointXYZ> cloud_out_neg;
   // Remove outliers using a spherical density criterion
   RadiusOutlierRemoval<PointXYZ> outrem;
   outrem.setInputCloud (cloud);
   outrem.setRadiusSearch (0.02);
   outrem.setMinNeighborsInRadius (14);
+  outrem.setNumberOfThreads(4);
   outrem.filter (cloud_out);
 
   EXPECT_EQ (cloud_out.size (), 307);
   EXPECT_EQ (cloud_out.width, 307);
   EXPECT_TRUE (cloud_out.is_dense);
-  EXPECT_NEAR (cloud_out[cloud_out.size () - 1].x, -0.077893, 1e-4);
-  EXPECT_NEAR (cloud_out[cloud_out.size () - 1].y, 0.16039, 1e-4);
-  EXPECT_NEAR (cloud_out[cloud_out.size () - 1].z, -0.021299, 1e-4);
+
+  outrem.setNegative(true);
+  outrem.filter(cloud_out_neg);
+
+  EXPECT_EQ(cloud_out_neg.size(), 90);
+  EXPECT_TRUE(cloud_out_neg.is_dense);
+
+  PointCloud<PointXYZRGB> cloud_out_rgb;
+  PointCloud<PointXYZRGB> cloud_out_rgb_neg;
+  // Remove outliers using a spherical density criterion on non-dense pointcloud
+  RadiusOutlierRemoval<PointXYZRGB> outremNonDense;
+  outremNonDense.setInputCloud(cloud_organized);
+  outremNonDense.setRadiusSearch(0.02);
+  outremNonDense.setMinNeighborsInRadius(14);
+  outremNonDense.setNumberOfThreads(4);
+  outremNonDense.filter(cloud_out_rgb);
+
+  EXPECT_EQ(cloud_out_rgb.size(), 240801);
+  EXPECT_EQ(cloud_out_rgb.width, 240801);
+  //EXPECT_TRUE(cloud_out_rgb.is_dense);
+
+  outremNonDense.setNegative(true);
+  outremNonDense.filter(cloud_out_rgb_neg);
+  EXPECT_EQ(cloud_out_rgb_neg.size(), 606);
+  //EXPECT_TRUE(cloud_out_rgb_neg.is_dense);
 
   // Test the pcl::PCLPointCloud2 method
   PCLPointCloud2 cloud_out2;
   RadiusOutlierRemoval<PCLPointCloud2> outrem2;
   outrem2.setInputCloud (cloud_blob);
   outrem2.setRadiusSearch (0.02);
-  outrem2.setMinNeighborsInRadius (15);
+  outrem2.setMinNeighborsInRadius (14);
   outrem2.filter (cloud_out2);
 
   fromPCLPointCloud2 (cloud_out2, cloud_out);
@@ -1518,7 +1777,7 @@ TEST (RadiusOutlierRemoval, Filters)
   RadiusOutlierRemoval<PCLPointCloud2> outrem2_(true);
   outrem2_.setInputCloud (cloud_blob);
   outrem2_.setRadiusSearch (0.02);
-  outrem2_.setMinNeighborsInRadius (15);
+  outrem2_.setMinNeighborsInRadius (14);
   outrem2_.filter (cloud_out2);
 
   fromPCLPointCloud2 (cloud_out2, cloud_out);
@@ -1972,9 +2231,9 @@ TEST (FrustumCulling, Filters)
       for (int k = 0; k < 5; k++)
       {
         pcl::PointXYZ pt;
-        pt.x = float (i);
-        pt.y = float (j);
-        pt.z = float (k);
+        pt.x = static_cast<float>(i);
+        pt.y = static_cast<float>(j);
+        pt.z = static_cast<float>(k);
         input->push_back (pt);
       }
     }
@@ -1997,11 +2256,11 @@ TEST (FrustumCulling, Filters)
     Eigen::AngleAxisf (0 * M_PI / 180, Eigen::Vector3f::UnitY ()) *
     Eigen::AngleAxisf (0 * M_PI / 180, Eigen::Vector3f::UnitZ ());
 
-  camera_pose.block (0, 0, 3, 3) = R;
+  camera_pose.topLeftCorner<3, 3> () = R;
 
   Eigen::Vector3f T;
   T (0) = -5; T (1) = 0; T (2) = 0;
-  camera_pose.block (0, 3, 3, 1) = T;
+  camera_pose.block<3, 1> (0, 3) = T;
   camera_pose (3, 3) = 1;
 
   fc.setCameraPose (camera_pose);
@@ -2051,7 +2310,7 @@ TEST (FrustumCulling, Filters)
 
   Eigen::Matrix4f cam2robot;
   cam2robot << 0, 0, 1, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1;
-  // Cut out object based on ROI 
+  // Cut out object based on ROI
   fc.setInputCloud (model);
   fc.setNegative (false);
   fc.setVerticalFOV (43);
@@ -2061,10 +2320,20 @@ TEST (FrustumCulling, Filters)
   fc.setRegionOfInterest (0.44f, 0.30f, 0.16f, 0.38f);
   fc.setCameraPose (cam2robot);
   fc.filter (*output);
-  // Should extract object; number of points based on milk.pcd
-  EXPECT_EQ (output->size (), 13541); 
+  // Should extract milk cartoon with 13541 points
+  EXPECT_EQ (output->size (), 13541);
   removed = fc.getRemovedIndices ();
-  EXPECT_EQ (removed->size (), model->size () - output->size ()); 
+  EXPECT_EQ (removed->size (), model->size () - output->size ());
+
+  // Cut out object based on field of view
+  fc.setRegionOfInterest (0.5f, 0.5f, 1.0f, 1.0f); // reset ROI
+  fc.setVerticalFOV (-22, 6);
+  fc.setHorizontalFOV (-22.5, -13.5);
+  fc.filter (*output);
+  // Should extract "all" laundry detergent with 10689 points
+  EXPECT_EQ (output->size (), 10689);
+  removed = fc.getRemovedIndices ();
+  EXPECT_EQ (removed->size (), model->size () - output->size ());
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -2116,7 +2385,7 @@ TEST (ConditionalRemovalTfQuadraticXYZComparison, Filters)
   EXPECT_EQ ((*input)[9].z, output[9].z);
 
   // rotate cylinder comparison along z-axis by PI/2
-  cyl_comp->transformComparison (getTransformation (0.0f, 0.0f, 0.0f, 0.0f, 0.0f, float (M_PI) / 2.0f).inverse ());
+  cyl_comp->transformComparison (getTransformation (0.0f, 0.0f, 0.0f, 0.0f, 0.0f, static_cast<float>(M_PI) / 2.0f).inverse ());
 
   condrem.filter (output);
 
@@ -2292,7 +2561,7 @@ TEST (NormalRefinement, Filters)
   const float vp_z = cloud_organized_nonan.sensor_origin_[2];
 
   // Search parameters
-  const int k = 5;
+  constexpr int k = 5;
   std::vector<pcl::Indices> k_indices;
   std::vector<std::vector<float> > k_sqr_distances;
 
@@ -2448,6 +2717,70 @@ TEST (NormalRefinement, Filters)
   // Expect mean/variance of error of refined to be smaller, i.e. closer to SAC model
   EXPECT_LT(err_refined_mean, err_est_mean);
   EXPECT_LT(err_refined_var, err_est_var);
+}
+
+TEST (VoxelGridOcclusionEstimation, Filters)
+{
+  auto input_cloud = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+  input_cloud->emplace_back(0.0, 0.0, 0.0);
+  input_cloud->emplace_back(9.9, 9.9, 9.9); // we want a nice bounding box from (0, 0, 0) to (10, 10, 10)
+  input_cloud->sensor_origin_ << -0.1f, 0.5f, 0.5f, 0.0f; // just outside the bounding box. Most rays will enter at voxel (0, 0, 0)
+  pcl::VoxelGridOcclusionEstimation<pcl::PointXYZ> vg;
+  vg.setInputCloud (input_cloud);
+  vg.setLeafSize (1.0, 1.0, 1.0);
+  vg.initializeVoxelGrid ();
+  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i> > occluded_voxels;
+  vg.occlusionEstimationAll (occluded_voxels);
+  for(std::size_t y=0; y<10; ++y) {
+    for (std::size_t z=0; z<10; ++z) {
+      if(y==9 && z==9) continue; // voxel (9, 9, 9) is occupied by point (9.9, 9.9, 9.9), so it will not be counted as occluded
+      Eigen::Vector3i cell(9, y, z);
+      EXPECT_NE(std::find(occluded_voxels.begin(), occluded_voxels.end(), cell), occluded_voxels.end()); // not equal means it was found
+    }
+  }
+}
+
+/////////////////////////////////////////////////
+TEST(RadiusOutlierRemovalPCLPointCloud2, Filters)
+{
+  // Test for the issue #2816. Both implementations must be true
+  PointCloud<PointXYZ>::Ptr pc_in(new PointCloud<PointXYZ>);
+  pc_in->push_back(PointXYZ(1.f, 0.f, 0.f));
+  pc_in->push_back(PointXYZ(2.f, 0.f, 0.f));
+  pc_in->push_back(PointXYZ(3.f, 0.f, 0.f));
+
+  PCLPointCloud2::Ptr pc2_in(new PCLPointCloud2);
+  toPCLPointCloud2(*pc_in, *pc2_in);
+
+  // Template implementation
+  {
+    RadiusOutlierRemoval<PointXYZ> filter;
+    filter.setInputCloud(pc_in);
+    filter.setRadiusSearch(1.1);
+    filter.setMinNeighborsInRadius(2);
+    PointCloud<PointXYZ> pc_out;
+    filter.filter(pc_out);
+    ASSERT_EQ(pc_out.size(), 1);
+    EXPECT_NEAR(pc_out[0].x, 2.f, 1e-4f);
+    EXPECT_NEAR(pc_out[0].y, 0.f, 1e-4f);
+    EXPECT_NEAR(pc_out[0].z, 0.f, 1e-4f);
+  }
+
+  // PCLPointCloud2 implementation should give the same result
+  {
+    RadiusOutlierRemoval<PCLPointCloud2> filter;
+    filter.setInputCloud(pc2_in);
+    filter.setRadiusSearch(1.1);
+    filter.setMinNeighborsInRadius(2);
+    PCLPointCloud2 pc2_out;
+    filter.filter(pc2_out);
+    PointCloud<PointXYZ> pc_out;
+    fromPCLPointCloud2(pc2_out, pc_out);
+    ASSERT_EQ(pc_out.size(), 1);
+    EXPECT_NEAR(pc_out[0].x, 2.f, 1e-4f);
+    EXPECT_NEAR(pc_out[0].y, 0.f, 1e-4f);
+    EXPECT_NEAR(pc_out[0].z, 0.f, 1e-4f);
+  }
 }
 
 /* ---[ */

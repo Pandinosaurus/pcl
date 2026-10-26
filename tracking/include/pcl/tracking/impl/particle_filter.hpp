@@ -62,8 +62,8 @@ ParticleFilterTracker<PointInT, StateT>::genAliasTable(
 {
   /* generate an alias table, a and q */
   std::vector<int> HL(particles->size());
-  std::vector<int>::iterator H = HL.begin();
-  std::vector<int>::iterator L = HL.end() - 1;
+  auto H = HL.begin();
+  auto L = HL.end() - 1;
   const auto num = particles->size();
   for (std::size_t i = 0; i < num; i++)
     q[i] = (*particles)[i].weight * static_cast<float>(num);
@@ -164,9 +164,9 @@ ParticleFilterTracker<PointInT, StateT>::cropInputPointCloud(
 {
   double x_min, y_min, z_min, x_max, y_max, z_max;
   calcBoundingBox(x_min, x_max, y_min, y_max, z_min, z_max);
-  pass_x_.setFilterLimits(float(x_min), float(x_max));
-  pass_y_.setFilterLimits(float(y_min), float(y_max));
-  pass_z_.setFilterLimits(float(z_min), float(z_max));
+  pass_x_.setFilterLimits(static_cast<float>(x_min), static_cast<float>(x_max));
+  pass_y_.setFilterLimits(static_cast<float>(y_min), static_cast<float>(y_max));
+  pass_z_.setFilterLimits(static_cast<float>(z_min), static_cast<float>(z_max));
 
   // x
   PointCloudInPtr xcloud(new PointCloudIn);
@@ -365,13 +365,11 @@ template <typename PointInT, typename StateT>
 void
 ParticleFilterTracker<PointInT, StateT>::update()
 {
-
   StateT orig_representative = representative_state_;
   representative_state_.zero();
   representative_state_.weight = 0.0;
-  for (const auto& p : *particles_) {
-    representative_state_ = representative_state_ + p * p.weight;
-  }
+  representative_state_ =
+      StateT::weightedAverage(particles_->begin(), particles_->end());
   representative_state_.weight = 1.0f / static_cast<float>(particles_->size());
   motion_ = representative_state_ - orig_representative;
 }

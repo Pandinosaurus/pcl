@@ -72,7 +72,7 @@ namespace pcl
         if (!skip_child_voxels_ && node->getDepth () < this->max_depth_ && node->getNodeType () == pcl::octree::BRANCH_NODE)
         {
           // Get the branch node
-          BranchNode* branch = static_cast<BranchNode*> (node);
+          auto* branch = static_cast<BranchNode*> (node);
           OctreeDiskNode* child = nullptr;
 
           // Iterate over the branches children
@@ -101,12 +101,12 @@ namespace pcl
         this->currentNode_ = nullptr;
       }
 
-      return (*this);
+      return *this;
     }
 
     ////////////////////////////////////////////////////////////////////////////////
 
-  }//namesapce pcl
+  }//namespace pcl
 }//namespace outofcore
 
 #endif //PCL_OUTOFCORE_BREADTH_FIRST_ITERATOR_IMPL_H_

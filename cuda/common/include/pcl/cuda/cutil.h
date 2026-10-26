@@ -595,7 +595,7 @@ extern "C" {
                  const unsigned int len, const float epsilon, const float threshold );
 
     ////////////////////////////////////////////////////////////////////////////////
-    //! Compare two integer arrays witha n epsilon tolerance for equality
+    //! Compare two integer arrays with an epsilon tolerance for equality
     //! @return  CUTTrue if \a reference and \a data are identical, 
     //!          otherwise CUTFalse
     //! @param reference  handle to the reference data / gold image
@@ -784,14 +784,6 @@ extern "C" {
     if ( cudaSuccess != err) {                                               \
         fprintf(stderr, "Cuda error in file '%s' in line %i : %s.\n",        \
                 __FILE__, __LINE__, cudaGetErrorString( err) );              \
-    } }
-
-#  define CUFFT_SAFE_CALL( call) {                                           \
-    cufftResult err = call;                                                  \
-    if( CUFFT_SUCCESS != err) {                                              \
-        fprintf(stderr, "CUFFT error in file '%s' in line %i.\n",            \
-                __FILE__, __LINE__);                                         \
-        exit(EXIT_FAILURE);                                                  \
     } }
 
 #  define CUT_SAFE_CALL( call)                                               \

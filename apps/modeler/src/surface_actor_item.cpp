@@ -54,9 +54,6 @@ pcl::modeler::SurfaceActorItem::SurfaceActorItem(
 {}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-pcl::modeler::SurfaceActorItem::~SurfaceActorItem() {}
-
-//////////////////////////////////////////////////////////////////////////////////////////////
 void
 pcl::modeler::SurfaceActorItem::initImpl()
 {
@@ -77,16 +74,15 @@ pcl::modeler::SurfaceActorItem::initImpl()
   mapper->SetScalarModeToUsePointData();
   mapper->InterpolateScalarsBeforeMappingOn();
   mapper->ScalarVisibilityOn();
-#if VTK_RENDERING_BACKEND_OPENGL_VERSION < 2
-  mapper->ImmediateModeRenderingOff();
-#endif
 
-  vtkSmartPointer<vtkLODActor> actor =
-      vtkSmartPointer<vtkLODActor>(dynamic_cast<vtkLODActor*>(actor_.GetPointer()));
+  auto* actor_ptr = dynamic_cast<vtkLODActor*>(actor_.GetPointer());
+  if (!actor_ptr)
+    return;
+  vtkSmartPointer<vtkLODActor> actor = vtkSmartPointer<vtkLODActor>(actor_ptr);
   actor->SetMapper(mapper);
 
   actor->SetNumberOfCloudPoints(
-      int(std::max<vtkIdType>(1, poly_data_->GetNumberOfPoints() / 10)));
+      static_cast<int>(std::max<vtkIdType>(1, poly_data_->GetNumberOfPoints() / 10)));
   actor->GetProperty()->SetInterpolationToFlat();
 
   actor->GetProperty()->SetRepresentationToSurface();

@@ -45,6 +45,7 @@
 //#include <pcl/features/fast_intensity_gradient.h>
 #include <pcl/features/intensity_gradient.h>
 #include <pcl/features/integral_image_normal.h>
+#include <pcl/search/auto.h>
 
 template <typename PointInT, typename PointOutT, typename NormalT> void
 pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::setThreshold (float threshold)
@@ -74,7 +75,7 @@ pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::setNonMaxSupression (bool n
 template <typename PointInT, typename PointOutT, typename NormalT> void
 pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::calculateCombinedCovar (const pcl::Indices& neighbors, float* coefficients) const
 {
-  memset (coefficients, 0, sizeof (float) * 21);
+  std::fill_n(coefficients, 21, 0);
   unsigned count = 0;
   for (const auto &neighbor : neighbors)
   {
@@ -112,7 +113,7 @@ pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::calculateCombinedCovar (con
   }
   if (count > 0)
   {
-    float norm = 1.0 / float (count);
+    float norm = 1.0 / static_cast<float>(count);
     coefficients[ 0] *= norm;
     coefficients[ 1] *= norm;
     coefficients[ 2] *= norm;
@@ -195,7 +196,7 @@ pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::detectKeypoints (PointCloud
     // Suat: ToDo: remove this magic number or expose using set/get
     if (len > 200.0)
     {
-      len = 1.0 / sqrt (len);
+      len = 1.0 / std::sqrt (len);
       intensity_gradients_->points [idx].gradient_x *= len;
       intensity_gradients_->points [idx].gradient_y *= len;
       intensity_gradients_->points [idx].gradient_z *= len;
@@ -356,8 +357,7 @@ pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::responseTomasi (PointCloudO
 template <typename PointInT, typename PointOutT, typename NormalT> void
 pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::refineCorners (PointCloudOut &corners) const
 {
-  pcl::search::KdTree<PointInT> search;
-  search.setInputCloud(surface_);
+  typename pcl::search::Search<PointInT>::Ptr search(pcl::search::autoSelectMethod<PointInT>(surface_, false, pcl::search::Purpose::radius_search));
 
   Eigen::Matrix3f nnT;
   Eigen::Matrix3f NNT;
@@ -378,7 +378,7 @@ pcl::HarrisKeypoint6D<PointInT, PointOutT, NormalT>::refineCorners (PointCloudOu
       corner.z = cornerIt->z;
       pcl::Indices nn_indices;
       std::vector<float> nn_dists;      
-      search.radiusSearch (corner, search_radius_, nn_indices, nn_dists);
+      search->radiusSearch (corner, search_radius_, nn_indices, nn_dists);
       for (const auto& index : nn_indices)
       {
         normal = reinterpret_cast<const Eigen::Vector3f*> (&((*normals_)[index].normal_x));

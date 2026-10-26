@@ -49,7 +49,6 @@ public:
   NormalsActorItem(QTreeWidgetItem* parent,
                    const CloudMesh::Ptr& cloud_mesh,
                    const vtkSmartPointer<vtkRenderWindow>& render_window);
-  ~NormalsActorItem();
 
   std::string
   getItemName() const override
@@ -77,8 +76,8 @@ protected:
   setProperties() override;
 
 private:
-  double level_;
-  double scale_;
+  double level_{10};
+  double scale_{0.1};
 };
 
 } // namespace modeler

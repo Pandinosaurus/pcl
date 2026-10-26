@@ -1,12 +1,11 @@
 set(SUBSYS_NAME tests_search)
 set(SUBSYS_DESC "Point cloud library search module unit tests")
 PCL_SET_TEST_DEPENDENCIES(SUBSYS_DEPS search)
+list(APPEND SUBSYS_DEPS kdtree)
 set(OPT_DEPS io)
 
-set(DEFAULT ON)
-set(build TRUE)
-PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ${DEFAULT} "${REASON}")
-PCL_SUBSYS_DEPEND(build "${SUBSYS_NAME}" DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
+PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ON)
+PCL_SUBSYS_DEPEND(build NAME ${SUBSYS_NAME} DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
 
 if(NOT build)
   return()
@@ -16,9 +15,20 @@ PCL_ADD_TEST(kdtree_search test_kdtree_search
              FILES test_kdtree.cpp
              LINK_WITH pcl_gtest pcl_search pcl_kdtree)
 
+PCL_ADD_TEST(brute_force_search test_brute_force_search
+             FILES test_brute_force.cpp
+             LINK_WITH pcl_gtest pcl_search pcl_common)
+
 PCL_ADD_TEST(flann_search test_flann_search
              FILES test_flann_search.cpp
              LINK_WITH pcl_gtest pcl_search pcl_kdtree)
+
+if(TARGET nanoflann::nanoflann)
+PCL_ADD_TEST(kdtree_nanoflann_search test_kdtree_nanoflann_search
+             FILES test_kdtree_nanoflann.cpp
+             LINK_WITH pcl_gtest pcl_common pcl_search pcl_io pcl_features
+             ARGUMENTS "${PCL_SOURCE_DIR}/test/bun0.pcd")
+endif()
 
 PCL_ADD_TEST(organized_neighbor test_organized_search
              FILES test_organized.cpp

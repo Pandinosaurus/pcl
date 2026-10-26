@@ -22,11 +22,7 @@ pcl::rec_3d_framework::GlobalNNCRHRecognizer<Distance, PointInT, FeatureT>::getP
     using mv_pair = std::pair<std::string, int>;
     mv_pair pair_model_view = std::make_pair(model.id_, view_id);
 
-    std::map<mv_pair,
-             Eigen::Matrix4f,
-             std::less<>,
-             Eigen::aligned_allocator<std::pair<const mv_pair, Eigen::Matrix4f>>>::
-        iterator it = poses_cache_.find(pair_model_view);
+    auto it = poses_cache_.find(pair_model_view);
 
     if (it != poses_cache_.end()) {
       pose_matrix = it->second;
@@ -91,7 +87,7 @@ pcl::rec_3d_framework::GlobalNNCRHRecognizer<Distance, PointInT, FeatureT>::
     std::string path =
         source_->getModelDescriptorDir(models->at(i), training_dir_, descr_name_);
 
-    for (const auto& dir_entry : bf::directory_iterator(path)) {
+    for (const auto& dir_entry : pcl_fs::directory_iterator(path)) {
       std::string file_name = (dir_entry.path().filename()).string();
 
       std::vector<std::string> strs;
@@ -297,7 +293,6 @@ pcl::rec_3d_framework::GlobalNNCRHRecognizer<Distance, PointInT, FeatureT>::reco
 
       // clang-format off
 #pragma omp parallel for \
-  default(none) \
   shared(VOXEL_SIZE_ICP_, cloud_voxelized_icp) \
   num_threads(omp_get_num_procs())
       // clang-format on
@@ -413,9 +408,9 @@ pcl::rec_3d_framework::GlobalNNCRHRecognizer<Distance, PointInT, FeatureT>::init
         std::string path =
             source_->getModelDescriptorDir(models->at(i), training_dir_, descr_name_);
 
-        bf::path desc_dir = path;
-        if (!bf::exists(desc_dir))
-          bf::create_directory(desc_dir);
+        pcl_fs::path desc_dir = path;
+        if (!pcl_fs::exists(desc_dir))
+          pcl_fs::create_directory(desc_dir);
 
         const std::string path_view = path + "/view_" + std::to_string(v) + ".pcd";
         pcl::io::savePCDFileBinary(path_view, *processed);

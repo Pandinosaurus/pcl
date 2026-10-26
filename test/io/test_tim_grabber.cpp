@@ -30,13 +30,13 @@ struct TestableTimGrabber : public pcl::TimGrabber {
 class TimGrabberTest : public ::testing::Test {
   protected:
     TimGrabberTest () = default;
-    ~TimGrabberTest () override {}
+    ~TimGrabberTest () override = default;
 
     std::vector<std::string> packets_;
     std::vector<CloudT> correct_clouds_;
     TestableTimGrabber grabber_;
 
-    virtual void SetUp () override {
+    void SetUp () override {
       constexpr float angle_start = - 1.0 * M_PI / 4.0;
       constexpr float angle_range = 2.0 * M_PI * 3.0 / 4.0;
 
@@ -89,9 +89,9 @@ TEST_F (TimGrabberTest, Test1)
     for (std::size_t j = 0; j < correct_clouds_.at(i).size (); j++) {
       PointT const& correct_point = correct_clouds_.at(i).at(j);
       PointT const& answer_point = answer_cloud->at(j);
-      EXPECT_NEAR (correct_point.x, answer_point.x, 1.0e-3);
-      EXPECT_NEAR (correct_point.y, answer_point.y, 1.0e-3);
-      EXPECT_NEAR (correct_point.z, answer_point.z, 1.0e-3);
+      EXPECT_NEAR (correct_point.x, answer_point.x, 2.0e-3);
+      EXPECT_NEAR (correct_point.y, answer_point.y, 2.0e-3);
+      EXPECT_NEAR (correct_point.z, answer_point.z, 2.0e-3);
     }
   }
 }

@@ -12,7 +12,12 @@
 #include <pcl/apps/render_views_tesselated_sphere.h>
 #include <pcl/io/pcd_io.h>
 
+#include <vtkVersion.h>
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+#include <vtkTransformFilter.h>
+#else
 #include <vtkTransformPolyDataFilter.h>
+#endif
 
 #include <functional>
 
@@ -81,7 +86,7 @@ public:
   loadOrGenerate(std::string& dir, std::string& model_path, ModelT& model)
   {
     const std::string pathmodel = dir + '/' + model.class_ + '/' + model.id_;
-    bf::path trained_dir = pathmodel;
+    pcl_fs::path trained_dir = pathmodel;
 
     model.views_.reset(new std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>);
     model.poses_.reset(
@@ -90,12 +95,12 @@ public:
     model.assembled_.reset(new pcl::PointCloud<pcl::PointXYZ>);
     uniform_sampling(model_path, 100000, *model.assembled_, model_scale_);
 
-    if (bf::exists(trained_dir)) {
+    if (pcl_fs::exists(trained_dir)) {
       // load views, poses and self-occlusions
       std::vector<std::string> view_filenames;
-      for (const auto& dir_entry : bf::directory_iterator(trained_dir)) {
+      for (const auto& dir_entry : pcl_fs::directory_iterator(trained_dir)) {
         // check if its a directory, then get models in it
-        if (!(bf::is_directory(dir_entry))) {
+        if (!(pcl_fs::is_directory(dir_entry))) {
           // check that it is a ply file and then add, otherwise ignore..
           std::vector<std::string> strs;
           std::vector<std::string> strs_;
@@ -153,13 +158,22 @@ public:
       trans->Modified();
       trans->Update();
 
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+      vtkSmartPointer<vtkTransformFilter> filter_scale =
+          vtkSmartPointer<vtkTransformFilter>::New();
+#else
       vtkSmartPointer<vtkTransformPolyDataFilter> filter_scale =
           vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+#endif
       filter_scale->SetTransform(trans);
       filter_scale->SetInputConnection(reader->GetOutputPort());
       filter_scale->Update();
 
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+      vtkSmartPointer<vtkPolyData> mapper = filter_scale->GetPolyDataOutput();
+#else
       vtkSmartPointer<vtkPolyData> mapper = filter_scale->GetOutput();
+#endif
 
       // generate views
       pcl::apps::RenderViewsTesselatedSphere render_views;

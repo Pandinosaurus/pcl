@@ -1,10 +1,9 @@
 set(SUBSYS_NAME registration)
 set(SUBSYS_DESC "Point cloud registration library")
-set(SUBSYS_DEPS common octree kdtree search sample_consensus features filters)
+set(SUBSYS_DEPS common octree search sample_consensus features filters)
 
-set(build TRUE)
 PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ON)
-PCL_SUBSYS_DEPEND(build "${SUBSYS_NAME}" DEPS ${SUBSYS_DEPS})
+PCL_SUBSYS_DEPEND(build NAME ${SUBSYS_NAME} DEPS ${SUBSYS_DEPS} OPT_DEPS OpenMP)
 
 PCL_ADD_DOC("${SUBSYS_NAME}")
 
@@ -13,8 +12,6 @@ if(NOT build)
 endif()
 
 set(incs
-  "include/pcl/${SUBSYS_NAME}/eigen.h"
-  "include/pcl/${SUBSYS_NAME}/boost.h"
   "include/pcl/${SUBSYS_NAME}/boost_graph.h"
   "include/pcl/${SUBSYS_NAME}/convergence_criteria.h"
   "include/pcl/${SUBSYS_NAME}/default_convergence_criteria.h"
@@ -47,12 +44,12 @@ set(incs
   "include/pcl/${SUBSYS_NAME}/ndt.h"
   "include/pcl/${SUBSYS_NAME}/ndt_2d.h"
   "include/pcl/${SUBSYS_NAME}/ppf_registration.h"
+  "include/pcl/${SUBSYS_NAME}/anderson_acceleration.h"
 
   "include/pcl/${SUBSYS_NAME}/impl/pairwise_graph_registration.hpp"
 
   "include/pcl/${SUBSYS_NAME}/pyramid_feature_matching.h"
   "include/pcl/${SUBSYS_NAME}/registration.h"
-  "include/pcl/${SUBSYS_NAME}/transforms.h"
   "include/pcl/${SUBSYS_NAME}/transformation_estimation.h"
   "include/pcl/${SUBSYS_NAME}/transformation_estimation_2D.h"
   "include/pcl/${SUBSYS_NAME}/transformation_estimation_svd.h"
@@ -64,10 +61,11 @@ set(incs
   "include/pcl/${SUBSYS_NAME}/transformation_estimation_point_to_plane_lls.h"
   "include/pcl/${SUBSYS_NAME}/transformation_estimation_point_to_plane_lls_weighted.h"
   "include/pcl/${SUBSYS_NAME}/transformation_estimation_symmetric_point_to_plane_lls.h"
+  "include/pcl/${SUBSYS_NAME}/transformation_estimation_point_to_point_robust.h"
   "include/pcl/${SUBSYS_NAME}/transformation_validation.h"
   "include/pcl/${SUBSYS_NAME}/transformation_validation_euclidean.h"
   "include/pcl/${SUBSYS_NAME}/gicp.h"
-  "include/pcl/${SUBSYS_NAME}/gicp6d.h"
+  "include/pcl/${SUBSYS_NAME}/fricp.h"
   "include/pcl/${SUBSYS_NAME}/bfgs.h"
   "include/pcl/${SUBSYS_NAME}/warp_point_rigid.h"
   "include/pcl/${SUBSYS_NAME}/warp_point_rigid_6d.h"
@@ -87,17 +85,10 @@ set(impl_incs
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_estimation_normal_shooting.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_estimation_backprojection.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_estimation_organized_projection.hpp"
-  "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_distance.hpp"
-  "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_median_distance.hpp"
-  "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_surface_normal.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_features.hpp"
-  "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_one_to_one.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_poly.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_sample_consensus.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_sample_consensus_2d.hpp"
-  "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_trimmed.hpp"
-  "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_var_trimmed.hpp"
-  "include/pcl/${SUBSYS_NAME}/impl/correspondence_rejection_organized_boundary.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/correspondence_types.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/ia_ransac.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/icp.hpp"
@@ -121,8 +112,10 @@ set(impl_incs
   "include/pcl/${SUBSYS_NAME}/impl/transformation_estimation_point_to_plane_lls_weighted.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/transformation_estimation_point_to_plane_weighted.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/transformation_estimation_symmetric_point_to_plane_lls.hpp"
+  "include/pcl/${SUBSYS_NAME}/impl/transformation_estimation_point_to_point_robust.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/transformation_validation_euclidean.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/gicp.hpp"
+  "include/pcl/${SUBSYS_NAME}/impl/fricp.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/sample_consensus_prerejective.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/ia_fpcs.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/ia_kfpcs.hpp"
@@ -154,7 +147,6 @@ set(srcs
   src/icp.cpp
   src/joint_icp.cpp
   src/gicp.cpp
-  src/gicp6d.cpp
   src/icp_nl.cpp
   src/elch.cpp
   src/lum.cpp
@@ -172,10 +164,14 @@ set(srcs
   src/sample_consensus_prerejective.cpp
 )
 
+if(PCL_HAS_FLANN OR PCL_HAS_NANOFLANN)
+  list(APPEND incs "include/pcl/${SUBSYS_NAME}/gicp6d.h")
+  list(APPEND srcs src/gicp6d.cpp)
+endif()
+
 set(LIB_NAME "pcl_${SUBSYS_NAME}")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 PCL_ADD_LIBRARY(${LIB_NAME} COMPONENT ${SUBSYS_NAME} SOURCES ${srcs} ${incs} ${impl_incs})
-target_link_libraries("${LIB_NAME}" pcl_kdtree pcl_search pcl_sample_consensus pcl_features pcl_filters)
+target_link_libraries("${LIB_NAME}" pcl_search pcl_sample_consensus pcl_features pcl_filters)
 PCL_MAKE_PKGCONFIG(${LIB_NAME} COMPONENT ${SUBSYS_NAME} DESC ${SUBSYS_DESC} PCL_DEPS ${SUBSYS_DEPS})
 # Install include files
 PCL_ADD_INCLUDES("${SUBSYS_NAME}" "${SUBSYS_NAME}" ${incs})

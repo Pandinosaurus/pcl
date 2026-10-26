@@ -49,6 +49,7 @@ namespace pcl
     *
     * \note This algorithm in its current implementation may not be suitable for very
     * large point clouds, due to high memory requirements.
+    * \tparam PointNT Use `pcl::PointNormal` or `pcl::PointXYZRGBNormal` or `pcl::PointXYZINormal`
     * \author Alexandru E. Ichim
     * \ingroup surface
     */
@@ -70,9 +71,6 @@ namespace pcl
       using MarchingCubes<PointNT>::lower_boundary_;
 
       using PointCloudPtr = typename pcl::PointCloud<PointNT>::Ptr;
-
-      using KdTree = pcl::KdTree<PointNT>;
-      using KdTreePtr = typename KdTree::Ptr;
 
 
       /** \brief Constructor. */

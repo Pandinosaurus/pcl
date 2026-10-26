@@ -39,6 +39,7 @@
 #define PCL_SURFACE_IMPL_TEXTURE_MAPPING_HPP_
 
 #include <pcl/common/distances.h>
+#include <pcl/search/auto.h> // for autoSelectMethod
 #include <pcl/surface/texture_mapping.h>
 #include <unordered_set>
 
@@ -791,9 +792,8 @@ pcl::TextureMapping<PointInT>::textureMeshwithMultipleCameras (pcl::TextureMesh 
     // TODO handle case were no face could be projected
     if (visibility.size () - cpt_invisible !=0)
     {
-        //create kdtree
-        pcl::KdTreeFLANN<pcl::PointXY> kdtree;
-        kdtree.setInputCloud (projections);
+        //create search object
+        pcl::search::Search<pcl::PointXY>::Ptr kdtree(pcl::search::autoSelectMethod<pcl::PointXY>(projections, true, pcl::search::Purpose::radius_search));
 
         pcl::Indices idxNeighbors;
         std::vector<float> neighborsSquaredDistance;
@@ -835,7 +835,7 @@ pcl::TextureMapping<PointInT>::textureMeshwithMultipleCameras (pcl::TextureMesh 
               getTriangleCircumcscribedCircleCentroid(uv_coord1, uv_coord2, uv_coord3, center, radius); // this function yields faster results than getTriangleCircumcenterAndSize
 
               // get points inside circ.circle
-              if (kdtree.radiusSearch (center, radius, idxNeighbors, neighborsSquaredDistance) > 0 )
+              if (kdtree->radiusSearch (center, radius, idxNeighbors, neighborsSquaredDistance) > 0 )
               {
                 // for each neighbor
                 for (const auto &idxNeighbor : idxNeighbors)
@@ -851,7 +851,7 @@ pcl::TextureMapping<PointInT>::textureMeshwithMultipleCameras (pcl::TextureMesh 
                       // current neighbor is inside triangle and is closer => the corresponding face
                       visibility[indexes_uv_to_points[idxNeighbor].idx_face] = false;
                       cpt_invisible++;
-                      //TODO we could remove the projections of this face from the kd-tree cloud, but I fond it slower, and I need the point to keep ordered to querry UV coordinates later
+                      //TODO we could remove the projections of this face from the kd-tree cloud, but I found it slower, and I need the point to keep ordered to query UV coordinates later
                     }
                   }
                 }

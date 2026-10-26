@@ -39,6 +39,7 @@
 #define PCL_FILTERS_IMPL_FAST_VOXEL_GRID_H_
 
 #include <pcl/common/io.h>
+#include <pcl/common/point_tests.h>
 #include <pcl/filters/approximate_voxel_grid.h>
 #include <boost/mpl/size.hpp> // for size
 
@@ -91,10 +92,12 @@ pcl::ApproximateVoxelGrid<PointT>::applyFilter (PointCloud &output)
   std::size_t op = 0;    // output pointer
   for (const auto& point: *input_)
   {
+    if(!pcl::isXYZFinite(point))
+      continue;
     int ix = static_cast<int> (std::floor (point.x * inverse_leaf_size_[0]));
     int iy = static_cast<int> (std::floor (point.y * inverse_leaf_size_[1]));
     int iz = static_cast<int> (std::floor (point.z * inverse_leaf_size_[2]));
-    unsigned int hash = static_cast<unsigned int> ((ix * 7171 + iy * 3079 + iz * 4231) & (histsize_ - 1));
+    auto hash = static_cast<unsigned int> ((ix * 7171 + iy * 3079 + iz * 4231) & (histsize_ - 1));
     he *hhe = &history_[hash];
     if (hhe->count && ((ix != hhe->ix) || (iy != hhe->iy) || (iz != hhe->iz))) 
     {
@@ -130,7 +133,7 @@ pcl::ApproximateVoxelGrid<PointT>::applyFilter (PointCloud &output)
   output.resize (op);
   output.width = output.size ();
   output.height       = 1;                    // downsampling breaks the organized structure
-  output.is_dense     = false;                 // we filter out invalid points
+  output.is_dense     = true;                 // we filter out invalid points
 }
 
 #define PCL_INSTANTIATE_ApproximateVoxelGrid(T) template class PCL_EXPORTS pcl::ApproximateVoxelGrid<T>;

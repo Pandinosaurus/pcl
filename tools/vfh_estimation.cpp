@@ -37,6 +37,7 @@
  *
  */
 
+#include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/features/vfh.h>
 #include <pcl/console/print.h>
@@ -85,7 +86,6 @@ compute (const PointCloud<PointNormal>::Ptr &input, PointCloud<VFHSignature308> 
   print_highlight (stderr, "Computing ");
 
   VFHEstimation<PointNormal, PointNormal, VFHSignature308> ne;
-  ne.setSearchMethod (search::KdTree<PointNormal>::Ptr (new search::KdTree<PointNormal>));
   ne.setInputCloud (input);
   ne.setInputNormals (input);
   

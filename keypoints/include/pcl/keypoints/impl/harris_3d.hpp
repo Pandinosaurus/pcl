@@ -148,17 +148,17 @@ pcl::HarrisKeypoint3D<PointInT, PointOutT, NormalT>::calculateNormalCovar (const
   }
   if (count > 0)
   {
-    norm2 = _mm_set1_ps (float(count));
+    norm2 = _mm_set1_ps (static_cast<float>(count));
     vec1 = _mm_div_ps (vec1, norm2);
     vec2 = _mm_div_ps (vec2, norm2);
     _mm_store_ps (coefficients, vec1);
     _mm_store_ps (coefficients + 4, vec2);
-    coefficients [7] = zz / float(count);
+    coefficients [7] = zz / static_cast<float>(count);
   }
   else
-    memset (coefficients, 0, sizeof (float) * 8);
+    std::fill_n(coefficients, 8, 0);
 #else
-  memset (coefficients, 0, sizeof (float) * 8);
+  std::fill_n(coefficients, 8, 0);
   for (const auto& index : neighbors)
   {
     if (std::isfinite ((*normals_)[index].normal_x))
@@ -503,13 +503,11 @@ pcl::HarrisKeypoint3D<PointInT, PointOutT, NormalT>::refineCorners (PointCloudOu
 {
   Eigen::Matrix3f nnT;
   Eigen::Matrix3f NNT;
-  Eigen::Matrix3f NNTInv;
   Eigen::Vector3f NNTp;
-  const unsigned max_iterations = 10;
+  constexpr unsigned max_iterations = 10;
 #pragma omp parallel for \
-  default(none) \
   shared(corners) \
-  firstprivate(nnT, NNT, NNTInv, NNTp) \
+  firstprivate(nnT, NNT, NNTp) \
   num_threads(threads_)
   for (int cIdx = 0; cIdx < static_cast<int> (corners.size ()); ++cIdx)
   {
@@ -533,8 +531,9 @@ pcl::HarrisKeypoint3D<PointInT, PointOutT, NormalT>::refineCorners (PointCloudOu
         NNT += nnT;
         NNTp += nnT * (*surface_)[index].getVector3fMap ();
       }
-      if (invert3x3SymMatrix (NNT, NNTInv) != 0)
-        corners[cIdx].getVector3fMap () = NNTInv * NNTp;
+      const Eigen::LDLT<Eigen::Matrix3f> ldlt(NNT);
+      if (ldlt.rcond() > 1e-4)
+        corners[cIdx].getVector3fMap () = ldlt.solve(NNTp);
 
       const auto diff = (corners[cIdx].getVector3fMap () - corner.getVector3fMap()).squaredNorm ();
       if (diff <= 1e-6) {

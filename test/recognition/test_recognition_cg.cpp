@@ -48,6 +48,7 @@
 #include <pcl/recognition/cg/hough_3d.h>
 #include <pcl/recognition/cg/geometric_consistency.h>
 #include <pcl/common/eigen.h>
+#include <pcl/kdtree/kdtree_flann.h> // for KdTreeFLANN
 
 using namespace pcl;
 using namespace pcl::io;
@@ -93,7 +94,7 @@ computeRmsE (const PointCloud<PointType>::ConstPtr &model, const PointCloud<Poin
   }
 
   if (found_points > 0)
-    return sqrt (sqr_norm_sum / double (transformed_model.size ()));
+    return sqrt (sqr_norm_sum / static_cast<double>(transformed_model.size ()));
 
   return std::numeric_limits<double>::max ();
 }
@@ -149,13 +150,13 @@ TEST (PCL, GeometricConsistencyGrouping)
   clusterer.setInputCloud (model_downsampled_);
   clusterer.setSceneCloud (scene_downsampled_);
   clusterer.setModelSceneCorrespondences (model_scene_corrs_);
-  clusterer.setGCSize (0.015);
+  clusterer.setGCSize (0.001);
   clusterer.setGCThreshold (25);
   EXPECT_TRUE (clusterer.recognize (rototranslations));
 
   //Assertions
   EXPECT_EQ (rototranslations.size (), 1);
-  EXPECT_LT (computeRmsE (model_, scene_, rototranslations[0]), 1E-4);
+  EXPECT_LT (computeRmsE (model_, scene_, rototranslations[0]), 1E-4) << std::endl << rototranslations[0] << std::endl << model_downsampled_->size() << std::endl << scene_downsampled_->size() << std::endl << model_scene_corrs_->size() << std::endl;
 }
 
 

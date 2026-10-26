@@ -1,10 +1,9 @@
 set(SUBSYS_NAME filters)
 set(SUBSYS_DESC "Point cloud filters library")
-set(SUBSYS_DEPS common sample_consensus search kdtree octree)
+set(SUBSYS_DEPS common sample_consensus search octree)
 
-set(build TRUE)
 PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ON)
-PCL_SUBSYS_DEPEND(build "${SUBSYS_NAME}" DEPS ${SUBSYS_DEPS})
+PCL_SUBSYS_DEPEND(build NAME ${SUBSYS_NAME} DEPS ${SUBSYS_DEPS} OPT_DEPS OpenMP)
 
 PCL_ADD_DOC("${SUBSYS_NAME}")
 
@@ -12,7 +11,9 @@ if(NOT build)
   return()
 endif()
 
+# The cpp files have been ordered so that files with a long compile time appear at the top, to efficiently build in parallel. Do not reorder alphabetically!
 set(srcs
+  src/voxel_grid_covariance.cpp
   src/conditional_removal.cpp
   src/convolution.cpp
   src/crop_box.cpp
@@ -22,6 +23,7 @@ set(srcs
   src/passthrough.cpp
   src/shadowpoints.cpp
   src/project_inliers.cpp
+  src/pyramid.cpp
   src/radius_outlier_removal.cpp
   src/random_sample.cpp
   src/normal_space.cpp
@@ -33,7 +35,6 @@ set(srcs
   src/fast_bilateral.cpp
   src/fast_bilateral_omp.cpp
   src/crop_hull.cpp
-  src/voxel_grid_covariance.cpp
   src/voxel_grid_label.cpp
   src/frustum_culling.cpp
   src/covariance_sampling.cpp
@@ -45,10 +46,10 @@ set(srcs
   src/morphological_filter.cpp
   src/local_maximum.cpp
   src/model_outlier_removal.cpp
+  src/farthest_point_sampling.cpp
 )
 
 set(incs
-  "include/pcl/${SUBSYS_NAME}/boost.h"
   "include/pcl/${SUBSYS_NAME}/conditional_removal.h"
   "include/pcl/${SUBSYS_NAME}/crop_box.h"
   "include/pcl/${SUBSYS_NAME}/clipper3D.h"
@@ -85,6 +86,7 @@ set(incs
   "include/pcl/${SUBSYS_NAME}/morphological_filter.h"
   "include/pcl/${SUBSYS_NAME}/local_maximum.h"
   "include/pcl/${SUBSYS_NAME}/model_outlier_removal.h"
+  "include/pcl/${SUBSYS_NAME}/farthest_point_sampling.h"
 )
 set(experimental_incs
   "include/pcl/${SUBSYS_NAME}/experimental/functor_filter.h"
@@ -125,12 +127,12 @@ set(impl_incs
   "include/pcl/${SUBSYS_NAME}/impl/morphological_filter.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/local_maximum.hpp"
   "include/pcl/${SUBSYS_NAME}/impl/model_outlier_removal.hpp"
+  "include/pcl/${SUBSYS_NAME}/impl/farthest_point_sampling.hpp"
 )
 
 set(LIB_NAME "pcl_${SUBSYS_NAME}")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 PCL_ADD_LIBRARY(${LIB_NAME} COMPONENT ${SUBSYS_NAME} SOURCES ${srcs} ${incs} ${impl_incs})
-target_link_libraries("${LIB_NAME}" pcl_common pcl_sample_consensus pcl_search pcl_kdtree pcl_octree)
+target_link_libraries("${LIB_NAME}" pcl_common pcl_sample_consensus pcl_search pcl_octree)
 PCL_MAKE_PKGCONFIG(${LIB_NAME} COMPONENT ${SUBSYS_NAME} DESC ${SUBSYS_DESC} PCL_DEPS ${SUBSYS_DEPS})
 
 # Install include files

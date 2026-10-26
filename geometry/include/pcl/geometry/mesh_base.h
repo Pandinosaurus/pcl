@@ -44,10 +44,12 @@
 #include <pcl/geometry/mesh_elements.h>
 #include <pcl/geometry/mesh_indices.h>
 #include <pcl/geometry/mesh_traits.h>
+#include <pcl/exceptions.h>
 #include <pcl/memory.h>
 #include <pcl/pcl_macros.h>
 #include <pcl/point_cloud.h>
 
+#include <cassert>
 #include <type_traits>
 #include <vector>
 
@@ -183,7 +185,7 @@ public:
   {
     vertices_.push_back(Vertex());
     this->addData(vertex_data_cloud_, vertex_data, HasVertexData());
-    return (VertexIndex(static_cast<int>(this->sizeVertices() - 1)));
+    return (static_cast<VertexIndex>(this->sizeVertices() - 1));
   }
 
   /**
@@ -231,10 +233,8 @@ public:
       }
     } while (++circ != circ_end);
 
-    for (FaceIndices::const_iterator it = delete_faces_vertex_.begin();
-         it != delete_faces_vertex_.end();
-         ++it) {
-      this->deleteFace(*it);
+    for (const auto& delete_me : delete_faces_vertex_) {
+      this->deleteFace(delete_me);
     }
   }
 
@@ -325,25 +325,28 @@ public:
     }
 
     // Adjust the indices
-    for (VertexIterator it = vertices_.begin(); it != vertices_.end(); ++it) {
-      if (it->idx_outgoing_half_edge_.isValid()) {
-        it->idx_outgoing_half_edge_ =
-            new_half_edge_indices[it->idx_outgoing_half_edge_.get()];
+    for (auto& vertex : vertices_) {
+      if (vertex.idx_outgoing_half_edge_.isValid()) {
+        vertex.idx_outgoing_half_edge_ =
+            new_half_edge_indices[vertex.idx_outgoing_half_edge_.get()];
       }
     }
 
-    for (HalfEdgeIterator it = half_edges_.begin(); it != half_edges_.end(); ++it) {
-      it->idx_terminating_vertex_ =
-          new_vertex_indices[it->idx_terminating_vertex_.get()];
-      it->idx_next_half_edge_ = new_half_edge_indices[it->idx_next_half_edge_.get()];
-      it->idx_prev_half_edge_ = new_half_edge_indices[it->idx_prev_half_edge_.get()];
-      if (it->idx_face_.isValid()) {
-        it->idx_face_ = new_face_indices[it->idx_face_.get()];
+    for (auto& half_edge : half_edges_) {
+      half_edge.idx_terminating_vertex_ =
+          new_vertex_indices[half_edge.idx_terminating_vertex_.get()];
+      half_edge.idx_next_half_edge_ =
+          new_half_edge_indices[half_edge.idx_next_half_edge_.get()];
+      half_edge.idx_prev_half_edge_ =
+          new_half_edge_indices[half_edge.idx_prev_half_edge_.get()];
+      if (half_edge.idx_face_.isValid()) {
+        half_edge.idx_face_ = new_face_indices[half_edge.idx_face_.get()];
       }
     }
 
-    for (FaceIterator it = faces_.begin(); it != faces_.end(); ++it) {
-      it->idx_inner_half_edge_ = new_half_edge_indices[it->idx_inner_half_edge_.get()];
+    for (auto& face : faces_) {
+      face.idx_inner_half_edge_ =
+          new_half_edge_indices[face.idx_inner_half_edge_.get()];
     }
   }
 
@@ -639,29 +642,32 @@ public:
   inline bool
   isValid(const VertexIndex& idx_vertex) const
   {
-    return (idx_vertex >= VertexIndex(0) &&
-            idx_vertex < VertexIndex(int(vertices_.size())));
+    return (idx_vertex >= static_cast<VertexIndex>(0) &&
+            idx_vertex < static_cast<VertexIndex>(vertices_.size()));
   }
 
   /** \brief Check if the given half-edge index is a valid index into the mesh.  */
   inline bool
   isValid(const HalfEdgeIndex& idx_he) const
   {
-    return (idx_he >= HalfEdgeIndex(0) && idx_he < HalfEdgeIndex(half_edges_.size()));
+    return (idx_he >= static_cast<HalfEdgeIndex>(0) &&
+            idx_he < static_cast<HalfEdgeIndex>(half_edges_.size()));
   }
 
   /** \brief Check if the given edge index is a valid index into the mesh. */
   inline bool
   isValid(const EdgeIndex& idx_edge) const
   {
-    return (idx_edge >= EdgeIndex(0) && idx_edge < EdgeIndex(half_edges_.size() / 2));
+    return (idx_edge >= static_cast<EdgeIndex>(0) &&
+            idx_edge < static_cast<EdgeIndex>(half_edges_.size() / 2));
   }
 
   /** \brief Check if the given face index is a valid index into the mesh.  */
   inline bool
   isValid(const FaceIndex& idx_face) const
   {
-    return (idx_face >= FaceIndex(0) && idx_face < FaceIndex(faces_.size()));
+    return (idx_face >= static_cast<FaceIndex>(0) &&
+            idx_face < static_cast<FaceIndex>(faces_.size()));
   }
 
   ////////////////////////////////////////////////////////////////////////
@@ -729,7 +735,7 @@ public:
     return (this->isBoundary(this->getOutgoingHalfEdgeIndex(idx_vertex)));
   }
 
-  /** \brief Check if the given half-edge lies on the bounddary. */
+  /** \brief Check if the given half-edge lies on the boundary. */
   inline bool
   isBoundary(const HalfEdgeIndex& idx_he) const
   {
@@ -896,7 +902,7 @@ public:
   inline void
   resizeVertices(const std::size_t n, const VertexData& data = VertexData())
   {
-    vertices_.resize(n);
+    vertices_.resize(n, Vertex());
     this->resizeData(vertex_data_cloud_, n, data, HasVertexData());
   }
 
@@ -906,7 +912,7 @@ public:
               const EdgeData& edge_data = EdgeData(),
               const HalfEdgeData he_data = HalfEdgeData())
   {
-    half_edges_.resize(2 * n);
+    half_edges_.resize(2 * n, HalfEdge());
     this->resizeData(half_edge_data_cloud_, 2 * n, he_data, HasHalfEdgeData());
     this->resizeData(edge_data_cloud_, n, edge_data, HasEdgeData());
   }
@@ -915,7 +921,7 @@ public:
   inline void
   resizeFaces(const std::size_t n, const FaceData& data = FaceData())
   {
-    faces_.resize(n);
+    faces_.resize(n, Face());
     this->resizeData(face_data_cloud_, n, data, HasFaceData());
   }
 
@@ -1090,7 +1096,7 @@ public:
              &vertex_data <= &vertex_data_cloud_.back());
       return (VertexIndex(std::distance(&vertex_data_cloud_.front(), &vertex_data)));
     }
-    return (VertexIndex());
+    return {};
   }
 
   /** \brief Get the index associated to the given half-edge data. */
@@ -1103,7 +1109,7 @@ public:
       return (HalfEdgeIndex(
           std::distance(&half_edge_data_cloud_.front(), &half_edge_data)));
     }
-    return (HalfEdgeIndex());
+    return {};
   }
 
   /** \brief Get the index associated to the given edge data. */
@@ -1115,7 +1121,7 @@ public:
              &edge_data <= &edge_data_cloud_.back());
       return (EdgeIndex(std::distance(&edge_data_cloud_.front(), &edge_data)));
     }
-    return (EdgeIndex());
+    return {};
   }
 
   /** \brief Get the index associated to the given face data. */
@@ -1127,7 +1133,7 @@ public:
              &face_data <= &face_data_cloud_.back());
       return (FaceIndex(std::distance(&face_data_cloud_.front(), &face_data)));
     }
-    return (FaceIndex());
+    return {};
   }
 
 protected:
@@ -1161,7 +1167,7 @@ protected:
   {
     const int n = static_cast<int>(vertices.size());
     if (n < 3)
-      return (FaceIndex());
+      return {};
 
     // Check for topological errors
     inner_he_.resize(n);
@@ -1174,7 +1180,7 @@ protected:
                                 inner_he_[i],
                                 is_new_[i],
                                 IsManifold())) {
-        return (FaceIndex());
+        return {};
       }
     }
     for (int i = 0; i < n; ++i) {
@@ -1187,7 +1193,7 @@ protected:
                                 make_adjacent_[i],
                                 free_he_[i],
                                 IsManifold())) {
-        return (FaceIndex());
+        return {};
       }
     }
 
@@ -1250,7 +1256,7 @@ protected:
     this->addData(half_edge_data_cloud_, he_data, HasHalfEdgeData());
     this->addData(edge_data_cloud_, edge_data, HasEdgeData());
 
-    return (HalfEdgeIndex(static_cast<int>(half_edges_.size() - 2)));
+    return (static_cast<HalfEdgeIndex>(half_edges_.size() - 2));
   }
 
   ////////////////////////////////////////////////////////////////////////
@@ -1328,7 +1334,7 @@ protected:
                  HalfEdgeIndex& /*idx_free_half_edge*/,
                  std::true_type /*is_manifold*/) const
   {
-    return !(is_new_ab && is_new_bc && !is_isolated_b);
+    return (!is_new_ab || !is_new_bc || is_isolated_b);
   }
 
   /** \brief Check if the half-edge bc is the next half-edge of ab.
@@ -1799,14 +1805,14 @@ protected:
                                 typename IndexContainerT::value_type());
     Index ind_old(0), ind_new(0);
 
-    typename ElementContainerT::const_iterator it_e_old = elements.begin();
-    typename ElementContainerT::iterator it_e_new = elements.begin();
+    auto it_e_old = elements.cbegin();
+    auto it_e_new = elements.begin();
 
-    typename DataContainerT::const_iterator it_d_old = data_cloud.begin();
-    typename DataContainerT::iterator it_d_new = data_cloud.begin();
+    auto it_d_old = data_cloud.cbegin();
+    auto it_d_new = data_cloud.begin();
 
-    typename IndexContainerT::iterator it_ind_new = new_indices.begin();
-    typename IndexContainerT::const_iterator it_ind_new_end = new_indices.end();
+    auto it_ind_new = new_indices.begin();
+    auto it_ind_new_end = new_indices.cend();
 
     while (it_ind_new != it_ind_new_end) {
       if (!this->isDeleted(ind_old)) {
@@ -1828,9 +1834,8 @@ protected:
       data_cloud.resize(ind_new.get());
     }
     else if (it_d_old != data_cloud.begin() || it_d_new != data_cloud.begin()) {
-      std::cerr << "TODO: Bug in MeshBase::remove!\n";
       assert(false);
-      exit(EXIT_FAILURE);
+      PCL_THROW_EXCEPTION(PCLException, "TODO: Bug in MeshBase::remove!")
     }
 
     return (new_indices);
@@ -1988,10 +1993,15 @@ protected:
   }
 
   /** \brief Always manifold. */
-  inline bool isManifold(std::true_type /*is_manifold*/) const { return (true); }
+  inline bool
+  isManifold(std::true_type /*is_manifold*/) const
+  {
+    return (true);
+  }
 
   /** \brief Check if all vertices in the mesh are manifold. */
-  bool isManifold(std::false_type /*is_manifold*/) const
+  bool
+  isManifold(std::false_type /*is_manifold*/) const
   {
     for (std::size_t i = 0; i < this->sizeVertices(); ++i) {
       if (!this->isManifold(VertexIndex(i)))
@@ -2023,12 +2033,12 @@ protected:
   /** \brief Resize the mesh data. */
   template <class DataCloudT>
   inline void
-  resizeData(DataCloudT& /*data_cloud*/,
+  resizeData(DataCloudT& data_cloud,
              const std::size_t n,
              const typename DataCloudT::value_type& data,
              std::true_type /*has_data*/) const
   {
-    data.resize(n, data);
+    data_cloud.resize(n, data);
   }
 
   /** \brief Does nothing. */
@@ -2164,7 +2174,7 @@ private:
   /** \brief Connectivity information for the faces. */
   Faces faces_;
 
-  // NOTE: It is MUCH faster to store these variables permamently.
+  // NOTE: It is MUCH faster to store these variables permanently.
 
   /** \brief Storage for addFaceImplBase and deleteFace. */
   HalfEdgeIndices inner_he_;

@@ -41,8 +41,7 @@
 
 #include <pcl/common/io.h>
 #include <pcl/common/point_tests.h> // for pcl::isFinite
-#include <pcl/search/organized.h> // for OrganizedNeighbor
-#include <pcl/search/kdtree.h> // for KdTree
+#include <pcl/search/auto.h>
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -63,7 +62,7 @@ pcl::getPointCloudDifference (
   // Iterate through the source data set
   for (index_t i = 0; i < static_cast<index_t> (src.size ()); ++i)
   {
-    // Ignore invalid points in the inpout cloud
+    // Ignore invalid points in the input cloud
     if (!isFinite (src[i]))
       continue;
     // Search for the closest point in the target data set (number of neighbors to find = 1)
@@ -109,13 +108,11 @@ pcl::SegmentDifferences<PointT>::segment (PointCloud &output)
   // Initialize the spatial locator
   if (!tree_)
   {
-    if (target_->isOrganized ())
-      tree_.reset (new pcl::search::OrganizedNeighbor<PointT> ());
-    else
-      tree_.reset (new pcl::search::KdTree<PointT> (false));
+    tree_.reset (pcl::search::autoSelectMethod<PointT>(target_, false, pcl::search::Purpose::one_knn_search));
   }
-  // Send the input dataset to the spatial locator
-  tree_->setInputCloud (target_);
+  else
+    // Send the input dataset to the spatial locator
+    tree_->setInputCloud (target_);
 
   getPointCloudDifference (*input_, distance_threshold_, tree_, output);
 

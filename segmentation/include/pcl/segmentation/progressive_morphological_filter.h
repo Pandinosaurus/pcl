@@ -71,13 +71,19 @@ namespace pcl
       
       ~ProgressiveMorphologicalFilter () override;
 
-      /** \brief Get the maximum window size to be used in filtering ground returns. */
-      inline int
+      /** \brief Get the maximum window size to be used in filtering ground returns.
+        * \return the maximum window size in the same units as the input cloud
+        * coordinates
+        */
+      inline float
       getMaxWindowSize () const { return (max_window_size_); }
 
-      /** \brief Set the maximum window size to be used in filtering ground returns. */
+      /** \brief Set the maximum window size to be used in filtering ground returns.
+        * \param[in] max_window_size the maximum window size in the same units as the
+        * input cloud coordinates
+        */
       inline void
-      setMaxWindowSize (int max_window_size) { max_window_size_ = max_window_size; }
+      setMaxWindowSize (float max_window_size) { max_window_size_ = max_window_size; }
 
       /** \brief Get the slope value to be used in computing the height threshold. */
       inline float
@@ -136,26 +142,27 @@ namespace pcl
 
     protected:
 
-      /** \brief Maximum window size to be used in filtering ground returns. */
-      int max_window_size_;
+      /** \brief Maximum window size to be used in filtering ground returns, in the
+        * same units as the input cloud coordinates. */
+      float max_window_size_{33.0f};
 
       /** \brief Slope value to be used in computing the height threshold. */
-      float slope_;
+      float slope_{0.7f};
 
       /** \brief Maximum height above the parameterized ground surface to be considered a ground return. */
-      float max_distance_;
+      float max_distance_{10.0f};
 
       /** \brief Initial height above the parameterized ground surface to be considered a ground return. */
-      float initial_distance_;
+      float initial_distance_{0.15f};
 
       /** \brief Cell size. */
-      float cell_size_;
+      float cell_size_{1.0f};
 
       /** \brief Base to be used in computing progressive window sizes. */
-      float base_;
+      float base_{2.0f};
 
       /** \brief Exponentially grow window sizes? */
-      bool exponential_;
+      bool exponential_{true};
   };
 }
 

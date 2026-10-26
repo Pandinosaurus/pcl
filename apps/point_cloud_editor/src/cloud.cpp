@@ -38,7 +38,6 @@
 /// @author  Yue Li and Matthew Hielsberg
 
 #include <algorithm>
-#include <qgl.h>
 #include <pcl/apps/point_cloud_editor/cloud.h>
 #include <pcl/apps/point_cloud_editor/selection.h>
 #include <pcl/apps/point_cloud_editor/localTypes.h>
@@ -138,7 +137,7 @@ Cloud::operator= (const Cloud &cloud)
   select_translate_x_ = cloud.select_translate_x_;
   select_translate_y_ = cloud.select_translate_y_;
   select_translate_z_ = cloud.select_translate_z_;
-  return (*this);
+  return *this;
 }
 
 Point3D&
@@ -301,7 +300,7 @@ Cloud::draw (bool disable_highlight) const
 
           // draw the selected points
           glDrawElements(GL_POINTS, selection_ptr->size(), GL_UNSIGNED_INT,
-                         &(partitioned_indices_[0]));
+                         partitioned_indices_.data());
         }
       }
       glPopMatrix();

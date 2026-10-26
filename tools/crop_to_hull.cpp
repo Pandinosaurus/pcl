@@ -38,6 +38,7 @@
   */
   
 #include <pcl/filters/crop_hull.h>
+#include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/console/print.h>
 #include <pcl/console/parse.h>
@@ -52,7 +53,7 @@ using namespace pcl::console;
 using PointT = PointXYZ;
 using CloudT = PointCloud<PointT>;
 
-const static double default_alpha = 1e3f;
+constexpr double default_alpha = 1e3f;
 
 static void
 printHelp (int, char **argv)

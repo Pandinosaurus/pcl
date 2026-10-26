@@ -48,7 +48,14 @@
 #include <pcl/io/ply_io.h>
 #include <pcl/io/ascii_io.h>
 #include <pcl/io/obj_io.h>
+#include <pcl/io/lzf.h>
+#include <pcl/io/lzf_image_io.h>
+#include <pcl/PolygonMesh.h>
+#include <cstdint>
+#include <cstring> // for memcpy
 #include <fstream>
+#include <iomanip> // for setprecision
+#include <limits>
 #include <locale>
 #include <stdexcept>
 
@@ -168,16 +175,16 @@ TEST (PCL, AllTypesPCDFile)
   fs.open ("all_types.pcd");
   fs << "# .PCD v0.7 - Point Cloud Data file format\n"
         "VERSION 0.7\n"
-        "FIELDS a1 a2 a3 a4 a5 a6 a7 a8\n"
-        "SIZE    1  1  2  2  4  4  4  8\n"
-        "TYPE    I  U  I  U  I  U  F  F\n"
-        "COUNT   1  2  1  2  1  2  1  2\n"
+        "FIELDS a1 a2 a3 a4 a5 a6 a7 a8 a9 a10\n"
+        "SIZE    1  1  2  2  4  4  4  8  8   8\n"
+        "TYPE    I  U  I  U  I  U  F  F  I   U\n"
+        "COUNT   1  2  1  2  1  2  1  2  1   2\n"
         "WIDTH 1\n"
         "HEIGHT 1\n"
         "VIEWPOINT 0 0 0 1 0 0 0\n"
         "POINTS 1\n"
         "DATA ascii\n"
-        "-50 250 251 -250 2500 2501 -250000 250000 250001 250.05 -250.05 -251.05";
+        "-50 250 251 -250 2500 2501 -250000 250000 250001 250.05 -250.05 -251.05 -5000000000 10000000000 10000000001";
   fs.close ();
 
   pcl::PCLPointCloud2 blob;
@@ -185,10 +192,14 @@ TEST (PCL, AllTypesPCDFile)
   EXPECT_NE (res, -1);
   EXPECT_EQ (blob.width, 1);
   EXPECT_EQ (blob.height, 1);
-  EXPECT_EQ (blob.data.size (), 1 + 1 * 2 + 2 * 1 + 2 * 2 + 4 * 1 + 4 * 2 + 4 * 1 + 8 * 2);
+  EXPECT_EQ (blob.data.size (), 1 * 1 + 1 * 2 + // {,u}int8_t
+                                2 * 1 + 2 * 2 + // {,u}in16_t
+                                4 * 1 + 4 * 2 + // {,u}int32_t
+                                4 * 1 + 8 * 2 + // f32, f64
+                                8 * 1 + 8 * 2); // {,u}int64_t
   EXPECT_TRUE (blob.is_dense);
 
-  EXPECT_EQ (blob.fields.size (), 8);
+  EXPECT_EQ (blob.fields.size (), 10);
   // Check fields
   EXPECT_EQ (blob.fields[0].name, "a1");
   EXPECT_EQ (blob.fields[1].name, "a2");
@@ -198,15 +209,19 @@ TEST (PCL, AllTypesPCDFile)
   EXPECT_EQ (blob.fields[5].name, "a6");
   EXPECT_EQ (blob.fields[6].name, "a7");
   EXPECT_EQ (blob.fields[7].name, "a8");
+  EXPECT_EQ (blob.fields[8].name, "a9");
+  EXPECT_EQ (blob.fields[9].name, "a10");
 
   EXPECT_EQ (blob.fields[0].offset, 0);
-  EXPECT_EQ (blob.fields[1].offset, 1);
-  EXPECT_EQ (blob.fields[2].offset, 1 + 1 * 2);
-  EXPECT_EQ (blob.fields[3].offset, 1 + 1 * 2 + 2 * 1);
-  EXPECT_EQ (blob.fields[4].offset, 1 + 1 * 2 + 2 * 1 + 2 * 2);
-  EXPECT_EQ (blob.fields[5].offset, 1 + 1 * 2 + 2 * 1 + 2 * 2 + 4 * 1);
-  EXPECT_EQ (blob.fields[6].offset, 1 + 1 * 2 + 2 * 1 + 2 * 2 + 4 * 1 + 4 * 2);
-  EXPECT_EQ (blob.fields[7].offset, 1 + 1 * 2 + 2 * 1 + 2 * 2 + 4 * 1 + 4 * 2 + 4 * 1);
+  EXPECT_EQ (blob.fields[1].offset, blob.fields[0].offset + 1);      // 1 int8_t
+  EXPECT_EQ (blob.fields[2].offset, blob.fields[1].offset + 1 * 2);  // 2 uint8_t
+  EXPECT_EQ (blob.fields[3].offset, blob.fields[2].offset + 2 * 1);  // 1 int16_t
+  EXPECT_EQ (blob.fields[4].offset, blob.fields[3].offset + 2 * 2);  // 2 uint16_t
+  EXPECT_EQ (blob.fields[5].offset, blob.fields[4].offset + 4 * 1);  // 1 int32_t
+  EXPECT_EQ (blob.fields[6].offset, blob.fields[5].offset + 4 * 2);  // 2 uint32_t
+  EXPECT_EQ (blob.fields[7].offset, blob.fields[6].offset + 4 * 1);  // 1 float
+  EXPECT_EQ (blob.fields[8].offset, blob.fields[7].offset + 8 * 2);  // 2 doubles
+  EXPECT_EQ (blob.fields[9].offset, blob.fields[8].offset + 8 * 1);  // 1 int64_t
 
   EXPECT_EQ (blob.fields[0].count, 1);
   EXPECT_EQ (blob.fields[1].count, 2);
@@ -216,6 +231,8 @@ TEST (PCL, AllTypesPCDFile)
   EXPECT_EQ (blob.fields[5].count, 2);
   EXPECT_EQ (blob.fields[6].count, 1);
   EXPECT_EQ (blob.fields[7].count, 2);
+  EXPECT_EQ (blob.fields[8].count, 1);
+  EXPECT_EQ (blob.fields[9].count, 2);
 
   EXPECT_EQ (blob.fields[0].datatype, pcl::PCLPointField::INT8);
   EXPECT_EQ (blob.fields[1].datatype, pcl::PCLPointField::UINT8);
@@ -225,6 +242,8 @@ TEST (PCL, AllTypesPCDFile)
   EXPECT_EQ (blob.fields[5].datatype, pcl::PCLPointField::UINT32);
   EXPECT_EQ (blob.fields[6].datatype, pcl::PCLPointField::FLOAT32);
   EXPECT_EQ (blob.fields[7].datatype, pcl::PCLPointField::FLOAT64);
+  EXPECT_EQ (blob.fields[8].datatype, pcl::PCLPointField::INT64);
+  EXPECT_EQ (blob.fields[9].datatype, pcl::PCLPointField::UINT64);
 
   std::int8_t b1;
   std::uint8_t b2;
@@ -234,30 +253,43 @@ TEST (PCL, AllTypesPCDFile)
   std::uint32_t b6;
   float b7;
   double b8;
+  std::int64_t b9;
+  std::uint64_t b10;
+
   memcpy (&b1, &blob.data[blob.fields[0].offset], sizeof (std::int8_t));
   EXPECT_FLOAT_EQ (b1, -50);
   memcpy (&b2, &blob.data[blob.fields[1].offset], sizeof (std::uint8_t));
   EXPECT_FLOAT_EQ (b2, 250);
   memcpy (&b2, &blob.data[blob.fields[1].offset + sizeof (std::uint8_t)], sizeof (std::uint8_t));
   EXPECT_FLOAT_EQ (b2, 251);
+
   memcpy (&b3, &blob.data[blob.fields[2].offset], sizeof (std::int16_t));
   EXPECT_FLOAT_EQ (b3, -250);
   memcpy (&b4, &blob.data[blob.fields[3].offset], sizeof (std::uint16_t));
   EXPECT_FLOAT_EQ (b4, 2500);
   memcpy (&b4, &blob.data[blob.fields[3].offset + sizeof (std::uint16_t)], sizeof (std::uint16_t));
   EXPECT_FLOAT_EQ (b4, 2501);
+
   memcpy (&b5, &blob.data[blob.fields[4].offset], sizeof (std::int32_t));
   EXPECT_FLOAT_EQ (float (b5), float (-250000));
   memcpy (&b6, &blob.data[blob.fields[5].offset], sizeof (std::uint32_t));
   EXPECT_FLOAT_EQ (float (b6), float (250000));
   memcpy (&b6, &blob.data[blob.fields[5].offset + sizeof (std::uint32_t)], sizeof (std::uint32_t));
   EXPECT_FLOAT_EQ (float (b6), float (250001));
+
   memcpy (&b7, &blob.data[blob.fields[6].offset], sizeof (float));
   EXPECT_FLOAT_EQ (b7, 250.05f);
   memcpy (&b8, &blob.data[blob.fields[7].offset], sizeof (double));
   EXPECT_FLOAT_EQ (float (b8), -250.05f);
   memcpy (&b8, &blob.data[blob.fields[7].offset + sizeof (double)], sizeof (double));
   EXPECT_FLOAT_EQ (float (b8), -251.05f);
+
+  memcpy (&b9, &blob.data[blob.fields[8].offset], sizeof (std::int64_t));
+  EXPECT_EQ (b9, -5000000000);
+  memcpy (&b10, &blob.data[blob.fields[9].offset], sizeof (std::uint64_t));
+  EXPECT_EQ (b10, 10000000000);
+  memcpy (&b10, &blob.data[blob.fields[9].offset + sizeof (std::uint64_t)], sizeof (std::uint64_t));
+  EXPECT_EQ (b10, 10000000001);
 
   remove ("all_types.pcd");
 }
@@ -662,6 +694,193 @@ TEST (PCL, IO)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (PCL, EmptyCloudToPCD)
+{
+  pcl::PointCloud<pcl::PointXYZ> cloud;
+  int res = pcl::io::savePCDFileASCII("ascii.pcd", cloud);
+  EXPECT_EQ (res, 0);
+  pcl::PointCloud<pcl::PointXYZ> cloud_in_ascii;
+  cloud_in_ascii.width = 10; // Make sure loadPCDFile overwrites this
+  cloud_in_ascii.height = 10; // Make sure loadPCDFile overwrites this
+  res = pcl::io::loadPCDFile("ascii.pcd", cloud_in_ascii);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ(cloud.width, cloud_in_ascii.width);
+  EXPECT_EQ(cloud.height, cloud_in_ascii.height);
+  remove ("ascii.pcd");
+  
+  pcl::Indices indices;
+  res = pcl::io::savePCDFile("ascii_indices.pcd", cloud, indices);
+  EXPECT_EQ (0, res);
+  pcl::PointCloud<pcl::PointXYZ> cloud_in_indices;
+  cloud_in_indices.width = 10; // Make sure loadPCDFile overwrites this
+  res = pcl::io::loadPCDFile("ascii_indices.pcd", cloud_in_indices);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ(cloud.width, cloud_in_indices.width);
+  EXPECT_EQ(1, cloud_in_indices.height); // if we specify indices height must be 1
+  remove ("ascii_indices.pcd");
+  
+  res = pcl::io::savePCDFileBinary("binary.pcd", cloud);
+  EXPECT_EQ (0, res);
+  pcl::PointCloud<pcl::PointXYZ> cloud_in_binary;
+  cloud_in_binary.width = 10; // Make sure loadPCDFile overwrites this
+  cloud_in_binary.height = 10; // Make sure loadPCDFile overwrites this
+  res = pcl::io::loadPCDFile("binary.pcd", cloud_in_binary);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ(cloud.width, cloud_in_binary.width);
+  EXPECT_EQ(cloud.height, cloud_in_binary.height);
+  remove ("binary.pcd");
+
+  res = pcl::io::savePCDFileBinaryCompressed("binary_compressed.pcd", cloud);
+  EXPECT_EQ (0, res);
+  pcl::PointCloud<pcl::PointXYZ> cloud_in_compressed;
+  cloud_in_compressed.width = 10; // Make sure loadPCDFile overwrites this
+  cloud_in_compressed.height = 10; // Make sure loadPCDFile overwrites this
+  res = pcl::io::loadPCDFile("binary_compressed.pcd", cloud_in_compressed);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ(cloud.width, cloud_in_compressed.width);
+  EXPECT_EQ(cloud.height, cloud_in_compressed.height);
+  remove ("binary_compressed.pcd");
+
+  // Data initialization for pcl::PCLPointCloud2 interface
+  pcl::PCLPointCloud2 cloud2;
+  pcl::PCLPointField x, y, z;
+  x.name = "x";
+  x.datatype = pcl::PCLPointField::FLOAT32;
+  y.name = "y";
+  y.datatype = pcl::PCLPointField::FLOAT32;
+  z.name = "z";
+  z.datatype = pcl::PCLPointField::FLOAT32;
+  cloud2.fields.push_back(x);
+  cloud2.fields.push_back(y);
+  cloud2.fields.push_back(z);
+  cloud2.is_dense = true;
+
+  res = pcl::io::savePCDFile ("ascii_pc2.pcd", cloud2,
+                              Eigen::Vector4f::Zero (),
+                              Eigen::Quaternionf::Identity ());
+  EXPECT_EQ (0, res);
+  pcl::PCLPointCloud2 cloud2_in_ascii;
+  cloud2_in_ascii.width = 10;
+  cloud2_in_ascii.height = 10;
+  res = loadPCDFile ("ascii_pc2.pcd", cloud2_in_ascii);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ (cloud2.width, cloud2_in_ascii.width);
+  EXPECT_EQ (cloud2.height, cloud2_in_ascii.height);
+  remove ("ascii_pc2.pcd");
+
+  res = pcl::io::savePCDFile ("binary_pc2.pcd", cloud2,
+                              Eigen::Vector4f::Zero (),
+                              Eigen::Quaternionf::Identity (),
+                              true);
+  EXPECT_EQ (0, res);
+
+  pcl::PCLPointCloud2 cloud2_in_binary;
+  cloud2_in_binary.width = 10;
+  cloud2_in_binary.height = 10;
+  res = loadPCDFile ("binary_pc2.pcd", cloud2_in_binary);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ (cloud2.width, cloud2_in_binary.width);
+  EXPECT_EQ (cloud2.height, cloud2_in_binary.height);
+  remove ("binary_pc2.pcd");
+
+  PCDWriter w;
+  res = w.writeBinaryCompressed ("compressed_pc2.pcd", cloud2);
+  EXPECT_EQ (0, res);
+  pcl::PCLPointCloud2 cloud2_in_compressed;
+  cloud2_in_compressed.width = 10;
+  cloud2_in_compressed.height = 10;
+  res = loadPCDFile ("compressed_pc2.pcd", cloud2_in_compressed);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ (cloud2.width, cloud2_in_compressed.width);
+  EXPECT_EQ (cloud2.height, cloud2_in_compressed.height);
+  remove ("compressed_pc2.pcd");
+
+  // Test when WIDTH and HEIGHT are not defined
+  std::ofstream fs;
+  fs.open ("incomplete_ascii.pcd");
+  fs << "# .PCD v0.5 - Point Cloud Data file format\n"
+        "VERSION 0.5\n"
+        "FIELDS x y z intensity\n"
+        "SIZE 4 4 4 4\n"
+        "TYPE F F F F\n"
+        "COUNT 1 1 1 1\n"
+        "POINTS 2\n"
+        "DATA ascii\n"
+        "1 2 3 4\n"
+        "5 6 7 8";
+  fs.close ();
+  pcl::PCLPointCloud2 incomplete_cloud2_in;
+  res = loadPCDFile ("incomplete_ascii.pcd", incomplete_cloud2_in);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ (2, incomplete_cloud2_in.width);
+  EXPECT_EQ (1, incomplete_cloud2_in.height);
+  EXPECT_EQ (true, bool (incomplete_cloud2_in.is_dense));
+  EXPECT_EQ (2 * 4 * 4, std::size_t (incomplete_cloud2_in.data.size ()));
+  remove ("incomplete_ascii.pcd");
+
+  // Test when HEIGHT are not defined
+  fs.open ("incomplete_height_ascii.pcd");
+  fs << "# .PCD v0.7 - Point Cloud Data file format\n"
+        "VERSION 0.7\n"
+        "FIELDS x y z intensity\n"
+        "SIZE 4 4 4 4\n"
+        "TYPE F F F F\n"
+        "COUNT 1 1 1 1\n"
+        "WIDTH 2\n"
+        "POINTS 2\n"
+        "DATA ascii\n"
+        "1 2 3 4\n"
+        "5 6 7 8";
+  fs.close ();
+  pcl::PCLPointCloud2 incomplete_height_cloud2_in;
+  res = loadPCDFile ("incomplete_height_ascii.pcd", incomplete_height_cloud2_in);
+  EXPECT_EQ (0, res);
+  EXPECT_EQ (2, incomplete_height_cloud2_in.width);
+  EXPECT_EQ (1, incomplete_height_cloud2_in.height);
+  EXPECT_EQ (true, bool (incomplete_height_cloud2_in.is_dense));
+  EXPECT_EQ (2 * 4 * 4, std::size_t (incomplete_height_cloud2_in.data.size ()));
+  remove ("incomplete_height_ascii.pcd");
+
+  // Test invalid height
+  fs.open ("invalid_height_ascii.pcd");
+  fs << "# .PCD v0.7 - Point Cloud Data file format\n"
+        "VERSION 0.7\n"
+        "FIELDS x y z intensity\n"
+        "SIZE 4 4 4 4\n"
+        "TYPE F F F F\n"
+        "COUNT 1 1 1 1\n"
+        "WIDTH 2\n"
+        "HEIGHT a\n"
+        "POINTS 2\n"
+        "DATA ascii\n"
+        "1 2 3 4\n"
+        "5 6 7 8";
+  fs.close ();
+  pcl::PCLPointCloud2 invalid_height_cloud2_in;
+  res = loadPCDFile ("invalid_height_ascii.pcd", invalid_height_cloud2_in);
+  EXPECT_EQ (-1, res);
+  remove ("invalid_height_ascii.pcd");
+
+  // Test for no field data
+  pcl::PCLPointCloud2 empty_cloud;
+  res = pcl::io::savePCDFile ("empty_cloud_ascii.pcd", empty_cloud,
+                              Eigen::Vector4f::Zero (),
+                              Eigen::Quaternionf::Identity ());
+  EXPECT_EQ (-1, res);
+  remove ("empty_cloud_ascii.pcd");
+
+  res = pcl::io::savePCDFile ("empty_cloud_binary.pcd", empty_cloud,
+                              Eigen::Vector4f::Zero (),
+                              Eigen::Quaternionf::Identity (),
+                              true);
+  EXPECT_EQ (-1, res);
+  remove ("empty_cloud_binary.pcd");
+
+  EXPECT_THROW(w.writeBinaryCompressed ("empty_cloud_compressed.pcd", empty_cloud),
+               pcl::IOException);
+  remove ("empty_cloud_compressed.pcd");
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TEST (PCL, PCDReaderWriter)
 {
   pcl::PCLPointCloud2 cloud_blob;
@@ -822,6 +1041,41 @@ TEST (PCL, ASCIIRead)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#if SIZE_MAX == UINT64_MAX
+TEST (PCL, ASCIIReadLargeCloud)
+{
+  // Supply a synthetic header so the test does not need a huge input file.
+  // The byte count exceeds vector::max_size(), so resize must reject it
+  // without attempting an allocation. A 32-bit multiplication wraps to 1.
+  class LargeCloudReader : public ASCIIReader
+  {
+    int
+    readHeader (const std::string&, PCLPointCloud2& cloud,
+                Eigen::Vector4f&, Eigen::Quaternionf&, int&, int&,
+                unsigned int&, const int) override
+    {
+      cloud.height = 1;
+      cloud.width = std::numeric_limits<std::uint32_t>::max ();
+      cloud.point_step = std::numeric_limits<std::uint32_t>::max ();
+      return 0;
+    }
+  };
+
+  std::ofstream file ("test_ascii_large_cloud.txt");
+  file.close ();
+  LargeCloudReader reader;
+  PCLPointCloud2 cloud;
+  Eigen::Vector4f origin;
+  Eigen::Quaternionf orientation;
+  int file_version;
+
+  EXPECT_THROW (reader.read ("test_ascii_large_cloud.txt", cloud, origin,
+                            orientation, file_version), std::length_error);
+  remove ("test_ascii_large_cloud.txt");
+}
+#endif
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TEST(PCL, OBJRead)
 {
   std::ofstream fs;
@@ -869,7 +1123,7 @@ TEST(PCL, OBJRead)
   fs.close ();
 
   pcl::PCLPointCloud2 blob;
-  pcl::OBJReader objreader = pcl::OBJReader();
+  pcl::OBJReader objreader;
   int res = objreader.read ("test_obj.obj", blob);
   EXPECT_NE (res, -1);
   EXPECT_EQ (blob.width, 8);
@@ -908,8 +1162,130 @@ TEST(PCL, OBJRead)
   EXPECT_EQ (blob.fields[5].count, 1);
   EXPECT_EQ (blob.fields[5].datatype, pcl::PCLPointField::FLOAT32);
 
+  auto fblob = reinterpret_cast<const float*>(blob.data.data());
+
+  size_t offset_p = 0;
+  size_t offset_vn = blob.fields[3].offset / 4;
+  for (size_t i = 0; i < blob.width; ++i, offset_p += 6, offset_vn += 6)
+  {
+    Eigen::Vector3f expected_normal =
+        Eigen::Vector3f(fblob[offset_p], fblob[offset_p + 1], fblob[offset_p + 2])
+            .normalized();
+
+    Eigen::Vector3f actual_normal =
+        Eigen::Vector3f(fblob[offset_vn], fblob[offset_vn + 1], fblob[offset_vn + 2])
+            .normalized();
+
+    EXPECT_NEAR(expected_normal.x(), actual_normal.x(), 1e-4);
+    EXPECT_NEAR(expected_normal.y(), actual_normal.y(), 1e-4);
+    EXPECT_NEAR(expected_normal.z(), actual_normal.z(), 1e-4);
+  }
+
   remove ("test_obj.obj");
   remove ("test_obj.mtl");
+}
+
+TEST(PCL, loadOBJWithoutFaces)
+{
+  std::ofstream fs;
+  fs.open ("test_obj.obj");
+  fs << "v -1.000000 -1.000000 1.000000\n"
+        "v -1.000000 1.000000 1.000000\n"
+        "v 1.000000 -1.000000 1.000000\n"
+        "v 1.000000 1.000000 1.000000\n"
+        "vn -1.0000 0.0000 0.0000\n"
+        "vn 0.0000 0.0000 -1.0000\n"
+        "vn 1.0000 0.0000 0.0000\n"
+        "vn 0.0000 1.0000 0.0000\n";
+
+  fs.close ();
+  pcl::PointCloud<pcl::PointNormal> point_cloud;
+  pcl::io::loadOBJFile("test_obj.obj", point_cloud);
+  EXPECT_EQ(point_cloud.size(), 4);
+  EXPECT_NEAR(point_cloud[0].normal_x, -1.0, 1e-5);
+  EXPECT_NEAR(point_cloud[1].normal_z, -1.0, 1e-5);
+  EXPECT_NEAR(point_cloud[2].normal_x, 1.0, 1e-5);
+  EXPECT_NEAR(point_cloud[3].normal_y, 1.0, 1e-5);
+  EXPECT_NEAR(point_cloud[1].normal_y, 0.0, 1e-5);
+  EXPECT_NEAR(point_cloud[3].normal_z, 0.0, 1e-5);
+  remove ("test_obj.obj");
+}
+
+TEST(PCL, OBJReadMalformedFaceIndices)
+{
+  const std::string fname = "test_obj_malformed.obj";
+
+  const std::string header =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.0 0.0\n"
+      "usemtl None\n";
+
+  const std::vector<std::string> bad_faces = {
+    "f 4//1 2//1 3//1\n",
+    "f 999999//1 2//1 3//1\n",
+    "f 1//999999 2//1 3//1\n",
+    "f 0//1 2//1 3//1\n",
+    "f -999//1 2//1 3//1\n",
+    "f abc//1 2//1 3//1\n",
+    "f 99999999999//1 2//1 3//1\n",
+  };
+
+  for (const auto &bad_face : bad_faces)
+  {
+    std::ofstream fs (fname);
+    fs << header << bad_face;
+    fs.close ();
+
+    pcl::OBJReader objreader;
+
+    pcl::PCLPointCloud2 blob;
+    EXPECT_EQ (objreader.read (fname, blob), -1) << "blob reader accepted: " << bad_face;
+
+    pcl::PolygonMesh poly_mesh;
+    EXPECT_EQ (objreader.read (fname, poly_mesh), -1) << "PolygonMesh reader accepted: " << bad_face;
+
+    pcl::TextureMesh tex_mesh;
+    EXPECT_EQ (objreader.read (fname, tex_mesh), -1) << "TextureMesh reader accepted: " << bad_face;
+  }
+
+  {
+    std::ofstream fs (fname);
+    fs << header << "f 1/999999/1 2/1/1 3/1/1\n";
+    fs.close ();
+
+    pcl::OBJReader objreader;
+    pcl::TextureMesh tex_mesh;
+    EXPECT_EQ (objreader.read (fname, tex_mesh), -1);
+  }
+
+  remove (fname.c_str ());
+}
+
+TEST(PCL, OBJReadValidRelativeIndices)
+{
+  const std::string fname = "test_obj_relative.obj";
+  std::ofstream fs (fname);
+  fs << "v 0.0 0.0 0.0\n"
+        "v 1.0 0.0 0.0\n"
+        "v 0.0 1.0 0.0\n"
+        "vn 0.0 0.0 1.0\n"
+        "f -3//-1 -2//-1 -1//-1\n";
+  fs.close ();
+
+  pcl::OBJReader objreader;
+
+  pcl::PCLPointCloud2 blob;
+  EXPECT_EQ (objreader.read (fname, blob), 0);
+  EXPECT_EQ (blob.width, 3);
+
+  pcl::PolygonMesh poly_mesh;
+  EXPECT_EQ (objreader.read (fname, poly_mesh), 0);
+  EXPECT_EQ (poly_mesh.polygons.size (), 1);
+
+  remove (fname.c_str ());
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1168,6 +1544,74 @@ TEST (PCL, LZFExtended)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (PCL, WriteBinaryToOStream)
+{
+  PointCloud<PointXYZRGBNormal> cloud;
+  cloud.width  = 640;
+  cloud.height = 480;
+  cloud.resize (cloud.width * cloud.height);
+  cloud.is_dense = true;
+
+  srand (static_cast<unsigned int> (time (nullptr)));
+  const auto nr_p = cloud.size ();
+  // Randomly create a new point cloud
+  for (std::size_t i = 0; i < nr_p; ++i)
+  {
+    cloud[i].x = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].y = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].z = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].normal_x = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].normal_y = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].normal_z = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].rgb = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+  }
+
+  pcl::PCLPointCloud2 blob;
+  pcl::toPCLPointCloud2 (cloud, blob);
+
+  std::ostringstream oss;
+  PCDWriter writer;
+  int res = writer.writeBinary (oss, blob);
+  EXPECT_EQ (res, 0);
+  std::string pcd_str = oss.str ();
+
+  Eigen::Vector4f origin;
+  Eigen::Quaternionf orientation;
+  int pcd_version = -1;
+  int data_type = -1;
+  unsigned int data_idx = 0;
+  std::istringstream iss (pcd_str, std::ios::binary);
+  PCDReader reader;
+  pcl::PCLPointCloud2 blob2;
+  res = reader.readHeader (iss, blob2, origin, orientation, pcd_version, data_type, data_idx);
+  EXPECT_EQ (res, 0);
+  EXPECT_EQ (blob2.width, blob.width);
+  EXPECT_EQ (blob2.height, blob.height);
+  EXPECT_EQ (data_type, 1); // since it was written by writeBinary (), it should be uncompressed.
+
+  const auto *data = reinterpret_cast<const unsigned char *> (pcd_str.data ());
+  res = reader.readBodyBinary (data, blob2, pcd_version, data_type == 2, data_idx);
+  PointCloud<PointXYZRGBNormal> cloud2;
+  pcl::fromPCLPointCloud2 (blob2, cloud2);
+  EXPECT_EQ (res, 0);
+  EXPECT_EQ (cloud2.width, blob.width);
+  EXPECT_EQ (cloud2.height, blob.height);
+  EXPECT_EQ (cloud2.is_dense, cloud.is_dense);
+  EXPECT_EQ (cloud2.size (), cloud.size ());
+
+  for (std::size_t i = 0; i < cloud2.size (); ++i)
+  {
+    EXPECT_EQ (cloud2[i].x, cloud[i].x);
+    EXPECT_EQ (cloud2[i].y, cloud[i].y);
+    EXPECT_EQ (cloud2[i].z, cloud[i].z);
+    EXPECT_EQ (cloud2[i].normal_x, cloud[i].normal_x);
+    EXPECT_EQ (cloud2[i].normal_y, cloud[i].normal_y);
+    EXPECT_EQ (cloud2[i].normal_z, cloud[i].normal_z);
+    EXPECT_EQ (cloud2[i].rgb, cloud[i].rgb);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TEST (PCL, LZFInMem)
 {
   PointCloud<PointXYZRGBNormal> cloud;
@@ -1213,7 +1657,7 @@ TEST (PCL, LZFInMem)
   EXPECT_EQ (blob2.height, blob.height);
   EXPECT_EQ (data_type, 2); // since it was written by writeBinaryCompressed(), it should be compressed.
 
-  const unsigned char *data = reinterpret_cast<const unsigned char *> (pcd_str.data ());
+  const auto *data = reinterpret_cast<const unsigned char *> (pcd_str.data ());
   res = reader.readBodyBinary (data, blob2, pcd_version, data_type == 2, data_idx);
   PointCloud<PointXYZRGBNormal> cloud2;
   pcl::fromPCLPointCloud2 (blob2, cloud2);
@@ -1236,30 +1680,138 @@ TEST (PCL, LZFInMem)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (PCL, LZFBinaryCompressedCorruptedSize)
+{
+  // A binary_compressed PCD stores the uncompressed size in its body header. The
+  // reader must not trust that value against the geometry taken from the header
+  // fields: a file that decompresses to fewer bytes than width * height * point
+  // size used to make the planar unpack loop read past the decompressed buffer
+  // and write past cloud.data. The reader should reject it instead.
+  PointCloud<PointXYZ> cloud;
+  cloud.width  = 100;
+  cloud.height = 1;
+  cloud.resize (cloud.width * cloud.height);
+  cloud.is_dense = true;
+  for (auto &point : cloud)
+  {
+    point.x = 1.0f; point.y = 2.0f; point.z = 3.0f;
+  }
+
+  pcl::PCLPointCloud2 blob;
+  pcl::toPCLPointCloud2 (cloud, blob);
+
+  std::ostringstream oss;
+  PCDWriter writer;
+  ASSERT_EQ (writer.writeBinaryCompressed (oss, blob), 0);
+  const std::string pcd_str = oss.str ();
+
+  Eigen::Vector4f origin;
+  Eigen::Quaternionf orientation;
+  int pcd_version = -1;
+  int data_type = -1;
+  unsigned int data_idx = 0;
+  std::istringstream iss (pcd_str, std::ios::binary);
+  PCDReader reader;
+  pcl::PCLPointCloud2 blob2;
+  ASSERT_EQ (reader.readHeader (iss, blob2, origin, orientation, pcd_version, data_type, data_idx), 0);
+  ASSERT_EQ (data_type, 2);
+
+  // Keep the parsed header, but replace the body with a short, self-consistent
+  // compressed block: an lzf literal run of 12 bytes (one point) that advertises
+  // uncompressed_size = 12 while the header still describes 100 points.
+  std::string corrupted = pcd_str.substr (0, data_idx);
+  const std::uint32_t compressed_size = 13;   // 1 control byte + 12 literal bytes
+  const std::uint32_t uncompressed_size = 12; // one XYZ point, not 100
+  corrupted.append (reinterpret_cast<const char*> (&compressed_size), 4);
+  corrupted.append (reinterpret_cast<const char*> (&uncompressed_size), 4);
+  corrupted.push_back (static_cast<char> (0x0b)); // literal run of (0x0b + 1) = 12 bytes
+  corrupted.append (12, '\0');
+
+  const auto *data = reinterpret_cast<const unsigned char *> (corrupted.data ());
+  EXPECT_EQ (reader.readBodyBinary (data, blob2, pcd_version, true, data_idx), -1);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (PCL, LZFImageWrappedDimensions)
+{
+  // The PCLZF header stores the image width and height as 32 bit values. Their
+  // product must not wrap when it is checked against the uncompressed size: with
+  // 65537 x 65536 the 32 bit product is 65536, so a payload sized for 65536 pixels
+  // used to pass the check while the readers walked the full width and height.
+  const std::uint32_t width = 65537, height = 65536;
+  const auto write_pclzf = [&] (const std::string &filename, const std::string &type,
+                                const std::uint32_t uncompressed_size)
+  {
+    std::vector<char> raw (uncompressed_size, 1);
+    std::vector<char> compressed (uncompressed_size * 2);
+    const std::uint32_t compressed_size = pcl::lzfCompress (
+        raw.data (), uncompressed_size, compressed.data (),
+        static_cast<std::uint32_t> (compressed.size ()));
+    ASSERT_GT (compressed_size, 0u);
+
+    char header[37] = {};
+    memcpy (&header[0], "PCLZF", 5);
+    memcpy (&header[5], &width, sizeof (width));
+    memcpy (&header[9], &height, sizeof (height));
+    memcpy (&header[13], type.data (), type.size ());
+    memcpy (&header[29], &compressed_size, sizeof (compressed_size));
+    memcpy (&header[33], &uncompressed_size, sizeof (uncompressed_size));
+
+    std::ofstream fs (filename, std::ios::binary);
+    fs.write (header, sizeof (header));
+    fs.write (compressed.data (), compressed_size);
+  };
+
+  write_pclzf ("test_lzf_depth.pclzf", "depth16", 65536 * 2);
+  write_pclzf ("test_lzf_rgb.pclzf", "rgb24", 65536 * 3);
+  write_pclzf ("test_lzf_yuv.pclzf", "yuv422", 65536 * 2);
+  write_pclzf ("test_lzf_bayer.pclzf", "bayer8", 65536);
+
+  PointCloud<PointXYZ> depth_cloud;
+  pcl::io::LZFDepth16ImageReader depth_reader;
+  EXPECT_FALSE (depth_reader.read ("test_lzf_depth.pclzf", depth_cloud));
+
+  PointCloud<PointXYZRGBA> cloud;
+  pcl::io::LZFRGB24ImageReader rgb_reader;
+  EXPECT_FALSE (rgb_reader.read ("test_lzf_rgb.pclzf", cloud));
+  pcl::io::LZFYUV422ImageReader yuv_reader;
+  EXPECT_FALSE (yuv_reader.read ("test_lzf_yuv.pclzf", cloud));
+  pcl::io::LZFBayer8ImageReader bayer_reader;
+  EXPECT_FALSE (bayer_reader.read ("test_lzf_bayer.pclzf", cloud));
+
+  remove ("test_lzf_depth.pclzf");
+  remove ("test_lzf_rgb.pclzf");
+  remove ("test_lzf_yuv.pclzf");
+  remove ("test_lzf_bayer.pclzf");
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TEST (PCL, Locale)
 {
 #ifndef __APPLE__
+  PointCloud<PointXYZ> cloud, cloud2, cloud3;
+  cloud.width  = 640;
+  cloud.height = 480;
+  cloud.resize (cloud.width * cloud.height);
+  cloud.is_dense = true;
+
+  srand (static_cast<unsigned int> (time (nullptr)));
+  const auto nr_p = cloud.size ();
+  // Randomly create a new point cloud
+  cloud[0].x = std::numeric_limits<float>::quiet_NaN ();
+  cloud[0].y = std::numeric_limits<float>::quiet_NaN ();
+  cloud[0].z = std::numeric_limits<float>::quiet_NaN ();
+
+  for (std::size_t i = 1; i < nr_p; ++i)
+  {
+    cloud[i].x = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].y = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+    cloud[i].z = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
+  }
+
+  // First write with German locale, then read with English locale
   try
   {
-    PointCloud<PointXYZ> cloud, cloud2;
-    cloud.width  = 640;
-    cloud.height = 480;
-    cloud.resize (cloud.width * cloud.height);
-    cloud.is_dense = true;
-
-    srand (static_cast<unsigned int> (time (nullptr)));
-    const auto nr_p = cloud.size ();
-    // Randomly create a new point cloud
-    cloud[0].x = std::numeric_limits<float>::quiet_NaN ();
-    cloud[0].y = std::numeric_limits<float>::quiet_NaN ();
-    cloud[0].z = std::numeric_limits<float>::quiet_NaN ();
-  
-    for (std::size_t i = 1; i < nr_p; ++i)
-    {
-      cloud[i].x = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
-      cloud[i].y = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
-      cloud[i].z = static_cast<float> (1024 * rand () / (RAND_MAX + 1.0));
-    }
     PCDWriter writer;
     try
     {
@@ -1312,6 +1864,56 @@ TEST (PCL, Locale)
   }
 
   remove ("test_pcl_io_ascii_locale.pcd");
+
+  // Now write with English locale, then read with German locale
+  try
+  {
+#ifdef _WIN32
+    std::locale::global (std::locale ("English_US"));
+#else
+    std::locale::global (std::locale ("en_US.UTF-8"));
+#endif
+  }
+  catch (const std::runtime_error&)
+  {
+    PCL_WARN ("Failed to set locale, skipping test.\n");
+  }
+  PCDWriter writer;
+  int res = writer.writeASCII<PointXYZ> ("test_pcl_io_ascii_locale.pcd", cloud);
+  EXPECT_EQ (res, 0);
+
+  PCDReader reader;
+  try
+  {
+#ifdef _WIN32
+    std::locale::global (std::locale ("German_germany"));
+#else
+    std::locale::global (std::locale ("de_DE.UTF-8"));
+#endif
+  }
+  catch (const std::runtime_error&)
+  {
+    PCL_WARN ("Failed to set locale, skipping test.\n");
+  }
+  reader.read<PointXYZ> ("test_pcl_io_ascii_locale.pcd", cloud3);
+  std::locale::global (std::locale::classic ());
+
+  EXPECT_EQ (cloud3.width, cloud.width);
+  EXPECT_EQ (cloud3.height, cloud.height);
+  EXPECT_FALSE (cloud3.is_dense);
+  EXPECT_EQ (cloud3.size (), cloud.size ());
+
+  EXPECT_TRUE (std::isnan(cloud3[0].x));
+  EXPECT_TRUE (std::isnan(cloud3[0].y));
+  EXPECT_TRUE (std::isnan(cloud3[0].z));
+  for (std::size_t i = 1; i < cloud3.size (); ++i)
+  {
+    ASSERT_FLOAT_EQ (cloud3[i].x, cloud[i].x);
+    ASSERT_FLOAT_EQ (cloud3[i].y, cloud[i].y);
+    ASSERT_FLOAT_EQ (cloud3[i].z, cloud[i].z);
+  }
+
+  remove ("test_pcl_io_ascii_locale.pcd");
 #endif
 }
 
@@ -1350,6 +1952,85 @@ TYPED_TEST (AutoIOTest, AutoLoadCloudFiles)
   remove ("test_autoio.pcd");
   remove ("test_autoio.ply");
   remove ("test_autoio.ifs");
+}
+
+TEST(PCL, IFS)
+{
+  // Write a cloud to an IFS file and check if it is the same after loading
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  cloud->push_back(pcl::PointXYZ(1.0, 2.0, 3.0));
+  cloud->push_back(pcl::PointXYZ(4.0, 5.0, 6.0));
+
+  pcl::io::saveIFSFile("test.ifs", *cloud);
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr loaded(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::io::loadIFSFile("test.ifs", *loaded);
+
+  EXPECT_EQ(cloud->size(), loaded->size());
+  for (size_t i = 0; i < cloud->size(); ++i)
+  {
+    const auto& src = cloud->points[i];
+    const auto& dst = loaded->points[i];
+    EXPECT_EQ(src.x, dst.x);
+    EXPECT_EQ(src.y, dst.y);
+    EXPECT_EQ(src.z, dst.z);
+  }
+  remove("test.ifs");
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST (PCL, IFSUnterminatedStrings)
+{
+  // The strings in an IFS header are length prefixed and the prefix comes straight from
+  // the file, so it need not account for the terminating null character that
+  // pcl::IFSWriter appends. Reading such a header must not run past the end of the
+  // buffer the string was read into.
+  std::vector<char> data;
+  const auto append_bytes = [&data] (const void* bytes, const std::size_t size)
+  {
+    const char* begin = reinterpret_cast<const char*> (bytes);
+    data.insert (data.end (), begin, begin + size);
+  };
+  const auto append_uint32 = [&append_bytes] (const std::uint32_t value)
+  {
+    append_bytes (&value, sizeof (value));
+  };
+  // Write the string without the terminating null character a writer would add
+  const auto append_unterminated = [&append_bytes, &append_uint32] (const std::string& str)
+  {
+    append_uint32 (static_cast<std::uint32_t> (str.size ()));
+    append_bytes (str.data (), str.size ());
+  };
+
+  append_unterminated ("IFS");
+  const float version = 1.0f;
+  append_bytes (&version, sizeof (version));
+  append_unterminated ("");                  // cloud name
+  append_unterminated ("VERTICES");
+  append_uint32 (1);                         // number of vertices
+  for (const float coordinate : {1.0f, 2.0f, 3.0f})
+    append_bytes (&coordinate, sizeof (coordinate));
+  append_unterminated ("TRIANGLES");
+  append_uint32 (1);                         // number of facets
+  for (int i = 0; i < 3; ++i)
+    append_uint32 (0);
+
+  std::ofstream fs ("test_ifs_unterminated.ifs", std::ios::binary);
+  fs.write (data.data (), data.size ());
+  fs.close ();
+
+  PointCloud<PointXYZ> cloud;
+  ASSERT_EQ (loadIFSFile ("test_ifs_unterminated.ifs", cloud), 0);
+  ASSERT_EQ (cloud.size (), 1);
+  EXPECT_EQ (cloud[0].x, 1.0f);
+  EXPECT_EQ (cloud[0].y, 2.0f);
+  EXPECT_EQ (cloud[0].z, 3.0f);
+
+  PolygonMesh mesh;
+  ASSERT_EQ (loadIFSFile ("test_ifs_unterminated.ifs", mesh), 0);
+  ASSERT_EQ (mesh.polygons.size (), 1);
+
+  remove ("test_ifs_unterminated.ifs");
 }
 
 /* ---[ */

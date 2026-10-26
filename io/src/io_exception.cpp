@@ -53,11 +53,11 @@ pcl::io::IOException&
 pcl::io::IOException::operator = (const IOException& exception)
 {
   message_ = exception.message_;
-  return (*this);
+  return *this;
 }
 
 const char*
-pcl::io::IOException::what () const throw ()
+pcl::io::IOException::what () const noexcept
 {
   return (message_long_.c_str ());
 }

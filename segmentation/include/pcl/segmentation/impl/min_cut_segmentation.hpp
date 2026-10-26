@@ -42,31 +42,12 @@
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp> // for boykov_kolmogorov_max_flow
 #include <pcl/segmentation/min_cut_segmentation.h>
 #include <pcl/search/search.h>
-#include <pcl/search/kdtree.h>
+#include <pcl/search/auto.h>
 #include <cmath>
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template <typename PointT>
-pcl::MinCutSegmentation<PointT>::MinCutSegmentation () :
-  inverse_sigma_ (16.0),
-  binary_potentials_are_valid_ (false),
-  epsilon_ (0.0001),
-  radius_ (16.0),
-  unary_potentials_are_valid_ (false),
-  source_weight_ (0.8),
-  search_ (),
-  number_of_neighbours_ (14),
-  graph_is_valid_ (false),
-  foreground_points_ (0),
-  background_points_ (0),
-  clusters_ (0),
-  vertices_ (0),
-  edge_marker_ (0),
-  source_ (),/////////////////////////////////
-  sink_ (),///////////////////////////////////
-  max_flow_ (0.0)
-{
-}
+pcl::MinCutSegmentation<PointT>::MinCutSegmentation () = default;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template <typename PointT>
@@ -229,7 +210,7 @@ pcl::MinCutSegmentation<PointT>::extract (std::vector <pcl::PointIndices>& clust
   if ( graph_is_valid_ && unary_potentials_are_valid_ && binary_potentials_are_valid_ )
   {
     clusters.reserve (clusters_.size ());
-    std::copy (clusters_.begin (), clusters_.end (), std::back_inserter (clusters));
+    std::copy (clusters_.cbegin (), clusters_.cend (), std::back_inserter (clusters));
     deinitCompute ();
     return;
   }
@@ -279,7 +260,7 @@ pcl::MinCutSegmentation<PointT>::extract (std::vector <pcl::PointIndices>& clust
   assembleLabels (residual_capacity);
 
   clusters.reserve (clusters_.size ());
-  std::copy (clusters_.begin (), clusters_.end (), std::back_inserter (clusters));
+  std::copy (clusters_.cbegin (), clusters_.cend (), std::back_inserter (clusters));
 
   deinitCompute ();
 }
@@ -309,7 +290,13 @@ pcl::MinCutSegmentation<PointT>::buildGraph ()
     return (false);
 
   if (!search_)
-    search_.reset (new pcl::search::KdTree<PointT>);
+  {
+    search_.reset (pcl::search::autoSelectMethod<PointT>(input_, indices_, true, pcl::search::Purpose::many_knn_search));
+  }
+  else
+  {
+    search_->setInputCloud (input_, indices_);
+  }
 
   graph_.reset (new mGraph);
 
@@ -344,7 +331,6 @@ pcl::MinCutSegmentation<PointT>::buildGraph ()
 
   pcl::Indices neighbours;
   std::vector<float> distances;
-  search_->setInputCloud (input_, indices_);
   for (std::size_t i_point = 0; i_point < number_of_indices; i_point++)
   {
     index_t point_index = (*indices_)[i_point];
@@ -422,7 +408,7 @@ pcl::MinCutSegmentation<PointT>::calculateUnaryPotential (int point, double& sou
 template <typename PointT> bool
 pcl::MinCutSegmentation<PointT>::addEdge (int source, int target, double weight)
 {
-  std::set<int>::iterator iter_out = edge_marker_[source].find (target);
+  auto iter_out = edge_marker_[source].find (target);
   if ( iter_out != edge_marker_[source].end () )
     return (false);
 
@@ -467,7 +453,7 @@ pcl::MinCutSegmentation<PointT>::recalculateUnaryPotentials ()
   OutEdgeIterator src_edge_end;
   std::pair<EdgeDescriptor, bool> sink_edge;
 
-  for (boost::tie (src_edge_iter, src_edge_end) = boost::out_edges (source_, *graph_); src_edge_iter != src_edge_end; src_edge_iter++)
+  for (boost::tie (src_edge_iter, src_edge_end) = boost::out_edges (source_, *graph_); src_edge_iter != src_edge_end; ++src_edge_iter)
   {
     double source_weight = 0.0;
     double sink_weight = 0.0;
@@ -496,14 +482,14 @@ pcl::MinCutSegmentation<PointT>::recalculateBinaryPotentials ()
   std::vector< std::set<VertexDescriptor> > edge_marker;
   std::set<VertexDescriptor> out_edges_marker;
   edge_marker.clear ();
-  edge_marker.resize (indices_->size () + 2, out_edges_marker);
+  edge_marker.resize (input_->size () + 2, out_edges_marker);
 
-  for (boost::tie (vertex_iter, vertex_end) = boost::vertices (*graph_); vertex_iter != vertex_end; vertex_iter++)
+  for (boost::tie (vertex_iter, vertex_end) = boost::vertices (*graph_); vertex_iter != vertex_end; ++vertex_iter)
   {
     VertexDescriptor source_vertex = *vertex_iter;
     if (source_vertex == source_ || source_vertex == sink_)
       continue;
-    for (boost::tie (edge_iter, edge_end) = boost::out_edges (source_vertex, *graph_); edge_iter != edge_end; edge_iter++)
+    for (boost::tie (edge_iter, edge_end) = boost::out_edges (source_vertex, *graph_); edge_iter != edge_end; ++edge_iter)
     {
       //If this is not the edge of the graph, but the reverse fictitious edge that is needed for the algorithm then continue
       EdgeDescriptor reverse_edge = (*reverse_edges_)[*edge_iter];
@@ -512,7 +498,7 @@ pcl::MinCutSegmentation<PointT>::recalculateBinaryPotentials ()
 
       //If we already changed weight for this edge then continue
       VertexDescriptor target_vertex = boost::target (*edge_iter, *graph_);
-      std::set<VertexDescriptor>::iterator iter_out = edge_marker[static_cast<int> (source_vertex)].find (target_vertex);
+      auto iter_out = edge_marker[static_cast<int> (source_vertex)].find (target_vertex);
       if ( iter_out != edge_marker[static_cast<int> (source_vertex)].end () )
         continue;
 
@@ -544,7 +530,7 @@ pcl::MinCutSegmentation<PointT>::assembleLabels (ResidualCapacityMap& residual_c
   clusters_.resize (2, segment);
 
   OutEdgeIterator edge_iter, edge_end;
-  for ( boost::tie (edge_iter, edge_end) = boost::out_edges (source_, *graph_); edge_iter != edge_end; edge_iter++ )
+  for ( boost::tie (edge_iter, edge_end) = boost::out_edges (source_, *graph_); edge_iter != edge_end; ++edge_iter )
   {
     if (labels[edge_iter->m_target] == 1)
     {
@@ -598,6 +584,6 @@ pcl::MinCutSegmentation<PointT>::getColoredCloud ()
   return (colored_cloud);
 }
 
-#define PCL_INSTANTIATE_MinCutSegmentation(T) template class pcl::MinCutSegmentation<T>;
+#define PCL_INSTANTIATE_MinCutSegmentation(T) template class PCL_EXPORTS pcl::MinCutSegmentation<T>;
 
 #endif    // PCL_SEGMENTATION_MIN_CUT_SEGMENTATION_HPP_

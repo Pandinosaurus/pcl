@@ -43,6 +43,8 @@
 
 #include <pcl/features/rift.h>
 
+#include <Eigen/Core>           // for Eigen::Map<const Eigen::Vector3f>
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 template <typename PointInT, typename GradientT, typename PointOutT> void
 pcl::RIFTEstimation<PointInT, GradientT, PointOutT>::computeRIFT (
@@ -61,14 +63,14 @@ pcl::RIFTEstimation<PointInT, GradientT, PointOutT>::computeRIFT (
   int nr_gradient_bins = static_cast<int> (rift_descriptor.cols ());
 
   // Get the center point
-  pcl::Vector3fMapConst p0 = cloud[p_idx].getVector3fMap ();
+  const Eigen::Map<const Eigen::Vector3f> p0 = cloud[p_idx].getVector3fMap ();
 
   // Compute the RIFT descriptor
   rift_descriptor.setZero ();
   for (std::size_t idx = 0; idx < indices.size (); ++idx)
   {
     // Compute the gradient magnitude and orientation (relative to the center point)
-    pcl::Vector3fMapConst point = cloud[indices[idx]].getVector3fMap ();
+    const Eigen::Map<const Eigen::Vector3f> point = cloud[indices[idx]].getVector3fMap ();
     Eigen::Map<const Eigen::Vector3f> gradient_vector (& (gradient[indices[idx]].gradient[0]));
 
     float gradient_magnitude = gradient_vector.norm ();
@@ -171,7 +173,7 @@ pcl::RIFTEstimation<PointInT, GradientT, PointOutT>::computeFeature (PointCloudO
     computeRIFT (*surface_, *gradient_, (*indices_)[idx], static_cast<float> (search_radius_), nn_indices, nn_dist_sqr, rift_descriptor);
 
     // Default layout is column major, copy elementwise
-    std::copy_n (rift_descriptor.data (), rift_descriptor.size (), output[idx].histogram);
+    std::copy (rift_descriptor.data (), rift_descriptor.data () + rift_descriptor.size (), output[idx].histogram);
   }
 }
 

@@ -62,12 +62,7 @@ public:
     cloud (new pcl::PointCloud<pcl::PointXYZ>()),
     displayCloud (new pcl::PointCloud<pcl::PointXYZ>()),
     cloudVoxel (new pcl::PointCloud<pcl::PointXYZ>()),
-    octree (resolution),
-    wireframe (true),
-    show_cubes_ (true),
-    show_centroids_ (false),
-    show_original_points_ (false),
-    point_size_ (1.0)
+    octree (resolution)
   {
 
     //try to load the cloud
@@ -126,9 +121,9 @@ private:
   //level
   int displayedDepth;
   //bool to decide what should be display
-  bool wireframe;
-  bool show_cubes_, show_centroids_, show_original_points_;
-  float point_size_;
+  bool wireframe{true};
+  bool show_cubes_{true}, show_centroids_{false}, show_original_points_{false};
+  float point_size_{1.0};
   //========================================================
 
   /* \brief Callback to interact with the keyboard
@@ -390,9 +385,9 @@ private:
       cloudVoxel->points.push_back (pt_voxel_center);
 
       // If the asked depth is the depth of the octree, retrieve the centroid at this LeafNode
-      if (octree.getTreeDepth () == (unsigned int) depth)
+      if (octree.getTreeDepth () == static_cast<unsigned int>(depth))
       {
-        pcl::octree::OctreePointCloudVoxelCentroid<pcl::PointXYZ>::LeafNode* container = static_cast<pcl::octree::OctreePointCloudVoxelCentroid<pcl::PointXYZ>::LeafNode*> (tree_it.getCurrentOctreeNode ());
+        auto* container = dynamic_cast<pcl::octree::OctreePointCloudVoxelCentroid<pcl::PointXYZ>::LeafNode*> (tree_it.getCurrentOctreeNode ());
 
         container->getContainer ().getCentroid (pt_centroid);
       }
@@ -402,7 +397,7 @@ private:
         // Retrieve every centroid under the current BranchNode
         pcl::octree::OctreeKey dummy_key;
         pcl::PointCloud<pcl::PointXYZ>::VectorType voxelCentroids;
-        octree.getVoxelCentroidsRecursive (static_cast<pcl::octree::OctreePointCloudVoxelCentroid<pcl::PointXYZ>::BranchNode*> (*tree_it), dummy_key, voxelCentroids);
+        octree.getVoxelCentroidsRecursive (dynamic_cast<pcl::octree::OctreePointCloudVoxelCentroid<pcl::PointXYZ>::BranchNode*> (*tree_it), dummy_key, voxelCentroids);
 
         // Iterate over the leafs to compute the centroid of all of them
         pcl::CentroidPoint<pcl::PointXYZ> centroid;
@@ -459,8 +454,8 @@ int main(int argc, char ** argv)
 {
   if (argc != 3)
   {
-    std::cerr << "ERROR: Syntax is octreeVisu <pcd file> <resolution>" << std::endl;
-    std::cerr << "EXAMPLE: ./octreeVisu bun0.pcd 0.001" << std::endl;
+    std::cerr << "ERROR: Syntax is " << argv[0] << " <pcd file> <resolution>" << std::endl;
+    std::cerr << "EXAMPLE: ./" << argv[0] << " bun0.pcd 0.001" << std::endl;
     return -1;
   }
 

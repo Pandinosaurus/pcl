@@ -51,13 +51,20 @@
 
 #include <pcl/common/common.h>
 #include <pcl/common/utils.h> // pcl::utils::ignore
+#ifdef PCL_VISUALIZATION_AVAILABLE
 #include <pcl/visualization/common/common.h>
+#endif
 #include <pcl/outofcore/octree_base_node.h>
 #include <pcl/filters/random_sample.h>
 #include <pcl/filters/extract_indices.h>
 
 // JSON
+#include <pcl/pcl_config.h> // for HAVE_CJSON
+#if defined(HAVE_CJSON)
+#include <cjson/cJSON.h>
+#else
 #include <pcl/outofcore/cJSON.h>
+#endif
 
 namespace pcl
 {
@@ -151,7 +158,7 @@ namespace pcl
 
           if (!boost::filesystem::is_directory (file))
           {
-            if (boost::filesystem::extension (file) == node_index_extension)
+            if (file.extension ().string () == node_index_extension)
             {
               b_loaded = node_metadata_->loadMetadataFromDisk (file);
               break;
@@ -212,13 +219,12 @@ namespace pcl
       num_children_ = 0;
 
       Eigen::Vector3d tmp_max = bb_max;
-      Eigen::Vector3d tmp_min = bb_min;
 
       // Need to make the bounding box slightly bigger so points that fall on the max side aren't excluded
       double epsilon = 1e-8;
       tmp_max += epsilon*Eigen::Vector3d (1.0, 1.0, 1.0);
 
-      node_metadata_->setBoundingBox (tmp_min, tmp_max);
+      node_metadata_->setBoundingBox (bb_min, tmp_max);
       node_metadata_->setDirectoryPathname (root_name.parent_path ());
       node_metadata_->setOutofcoreVersion (3);
 
@@ -577,8 +583,8 @@ namespace pcl
       }
 
       // Derive percentage from specified sample_percent and tree depth
-      const double percent = pow(sample_percent_, double((this->root_node_->m_tree_->getDepth () - depth_)));
-      const std::uint64_t samplesize = static_cast<std::uint64_t>(percent * static_cast<double>(sampleBuff.size()));
+      const double percent = pow(sample_percent_, static_cast<double>((this->root_node_->m_tree_->getDepth () - depth_)));
+      const auto samplesize = static_cast<std::uint64_t>(percent * static_cast<double>(sampleBuff.size()));
       const std::uint64_t inputsize = sampleBuff.size();
 
       if(samplesize > 0)
@@ -1195,7 +1201,7 @@ namespace pcl
     }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+#ifdef PCL_VISUALIZATION_AVAILABLE
     template<typename Container, typename PointT> void
     OutofcoreOctreeBaseNode<Container, PointT>::queryFrustum (const double planes[24], const Eigen::Vector3d &eye, const Eigen::Matrix4d &view_projection_matrix, std::list<std::string>& file_names, const std::uint32_t query_depth, const bool skip_vfc_check)
     {
@@ -1306,6 +1312,7 @@ namespace pcl
         }
       }
     }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
     template<typename ContainerT, typename PointT> void
@@ -1334,11 +1341,7 @@ namespace pcl
     template<typename ContainerT, typename PointT> void
     OutofcoreOctreeBaseNode<ContainerT, PointT>::queryBBIntersects (const Eigen::Vector3d& min_bb, const Eigen::Vector3d& max_bb, const std::uint32_t query_depth, std::list<std::string>& file_names)
     {
-      
-      Eigen::Vector3d my_min = min_bb;
-      Eigen::Vector3d my_max = max_bb;
-      
-      if (intersectsWithBoundingBox (my_min, my_max))
+      if (intersectsWithBoundingBox (min_bb, max_bb))
       {
         if (this->depth_ < query_depth)
         {
@@ -1347,7 +1350,7 @@ namespace pcl
             for (std::size_t i = 0; i < 8; i++)
             {
               if (children_[i])
-                children_[i]->queryBBIntersects (my_min, my_max, query_depth, file_names);
+                children_[i]->queryBBIntersects (min_bb, max_bb, query_depth, file_names);
             }
           }
           else if (hasUnloadedChildren ())
@@ -1357,7 +1360,7 @@ namespace pcl
             for (std::size_t i = 0; i < 8; i++)
             {
               if (children_[i])
-                children_[i]->queryBBIntersects (my_min, my_max, query_depth, file_names);
+                children_[i]->queryBBIntersects (min_bb, max_bb, query_depth, file_names);
             }
           }
           return;
@@ -1684,7 +1687,7 @@ namespace pcl
 
           //use STL random_shuffle and push back a random selection of the points onto our list
           std::shuffle (payload_cache_within_region.begin (), payload_cache_within_region.end (), std::mt19937(std::random_device()()));
-          std::size_t numpick = static_cast<std::size_t> (percent * static_cast<double> (payload_cache_within_region.size ()));;
+          auto numpick = static_cast<std::size_t> (percent * static_cast<double> (payload_cache_within_region.size ()));;
 
           for (std::size_t i = 0; i < numpick; i++)
           {
@@ -1942,7 +1945,7 @@ namespace pcl
     template<typename ContainerT, typename PointT> void
     OutofcoreOctreeBaseNode<ContainerT, PointT>::convertToXYZRecursive ()
     {
-      std::string fname = boost::filesystem::basename (node_metadata_->getPCDFilename ()) + std::string (".dat.xyz");
+      std::string fname = node_metadata_->getPCDFilename ().stem ().string () + ".dat.xyz";
       boost::filesystem::path xyzfile = node_metadata_->getDirectoryPathname () / fname;
       payload_->convertToXYZ (xyzfile);
 
@@ -2055,7 +2058,7 @@ namespace pcl
           const boost::filesystem::path& file = *diter;
           if (!boost::filesystem::is_directory (file))
           {
-            if (boost::filesystem::extension (file) == OutofcoreOctreeBaseNode<ContainerT, PointT>::node_index_extension)
+            if (file.extension ().string () == OutofcoreOctreeBaseNode<ContainerT, PointT>::node_index_extension)
             {
               thisnode->thisnodeindex_ = file;
               loaded = true;

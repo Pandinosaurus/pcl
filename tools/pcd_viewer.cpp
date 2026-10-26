@@ -52,7 +52,7 @@
 #include <pcl/console/print.h>
 #include <pcl/console/parse.h>
 #include <pcl/console/time.h>
-#include <pcl/search/kdtree.h>
+#include <pcl/search/auto.h> // for autoSelectMethod
 #include <vtkPolyDataReader.h>
 
 using namespace std::chrono_literals;
@@ -83,9 +83,7 @@ isValidFieldName (const std::string &field)
 bool
 isMultiDimensionalFeatureField (const pcl::PCLPointField &field)
 {
-  if (field.count > 1)
-    return (true);
-  return (false);
+  return (field.count > 1 && field.name != "_"); // check for padding fields "_"
 }
 
 bool
@@ -95,7 +93,7 @@ isOnly2DImage (const pcl::PCLPointField &field)
     return (true);
   return (false);
 }
-  
+
 void
 printHelp (int, char **argv)
 {
@@ -131,14 +129,18 @@ printHelp (int, char **argv)
   print_info ("\n");
   print_info ("                     -immediate_rendering 0/1 = use immediate mode rendering to draw the data (default: "); print_value ("disabled"); print_info (")\n");
   print_info ("                                                Note: the use of immediate rendering will enable the visualization of larger datasets at the expense of extra RAM.\n");
-  print_info ("                                                See http://en.wikipedia.org/wiki/Immediate_mode for more information.\n");
+  print_info ("                                                See https://en.wikipedia.org/wiki/Immediate_mode for more information.\n");
   print_info ("                     -vbo_rendering 0/1       = use OpenGL 1.4+ Vertex Buffer Objects for rendering (default: "); print_value ("disabled"); print_info (")\n");
   print_info ("                                                Note: the use of VBOs will enable the visualization of larger datasets at the expense of extra RAM.\n");
-  print_info ("                                                See http://en.wikipedia.org/wiki/Vertex_Buffer_Object for more information.\n");
+  print_info ("                                                See https://en.wikipedia.org/wiki/Vertex_Buffer_Object for more information.\n");
   print_info ("\n");
   print_info ("                     -use_point_picking       = enable the usage of picking points on screen (default "); print_value ("disabled"); print_info (")\n");
   print_info ("\n");
+  print_info ("                     -use_area_picking       = enable the usage of area picking points on screen (default "); print_value("disabled"); print_info(")\n");
+  print_info ("\n");
   print_info ("                     -optimal_label_colors    = maps existing labels to the optimal sequential glasbey colors, label_ids will not be mapped to fixed colors (default "); print_value ("disabled"); print_info (")\n");
+  print_info ("\n");
+  print_info ("                     -edl                     = Enable Eye-Dome Lighting rendering, to improve depth perception. (default: "); print_value ("disabled"); print_info (")\n");
   print_info ("\n");
 
   print_info ("\n(Note: for multiple .pcd files, provide multiple -{fc,ps,opaque,position,orientation} parameters; they will be automatically assigned to the right file)\n");
@@ -148,9 +150,21 @@ printHelp (int, char **argv)
 pcl::visualization::PCLPlotter ph_global;
 pcl::visualization::PCLVisualizer::Ptr p;
 std::vector<pcl::visualization::ImageViewer::Ptr > imgs;
-pcl::search::KdTree<pcl::PointXYZ> search;
+pcl::search::Search<pcl::PointXYZ>::Ptr search;
 pcl::PCLPointCloud2::Ptr cloud;
 pcl::PointCloud<pcl::PointXYZ>::Ptr xyzcloud;
+
+void
+area_callback(const pcl::visualization::AreaPickingEvent& event, void* /*cookie*/)
+{
+  const auto names = event.getCloudNames();
+
+  for (const std::string& name : names) {
+    const pcl::Indices indices = event.getPointsIndices(name);
+
+    PCL_INFO("Picked %d points from %s \n", indices.size(), name.c_str());
+  }
+}
 
 void
 pp_callback (const pcl::visualization::PointPickingEvent& event, void* cookie)
@@ -164,7 +178,7 @@ pp_callback (const pcl::visualization::PointPickingEvent& event, void* cookie)
     cloud = *reinterpret_cast<pcl::PCLPointCloud2::Ptr*> (cookie);
     xyzcloud.reset (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromPCLPointCloud2 (*cloud, *xyzcloud);
-    search.setInputCloud (xyzcloud);
+    search.reset(pcl::search::autoSelectMethod<pcl::PointXYZ>(xyzcloud, false, pcl::search::Purpose::one_knn_search));
   }
   // Return the correct index in the cloud instead of the index on the screen
   pcl::Indices indices (1);
@@ -173,7 +187,7 @@ pp_callback (const pcl::visualization::PointPickingEvent& event, void* cookie)
   // Because VTK/OpenGL stores data without NaN, we lose the 1-1 correspondence, so we must search for the real point
   pcl::PointXYZ picked_pt;
   event.getPoint (picked_pt.x, picked_pt.y, picked_pt.z);
-  search.nearestKSearch (picked_pt, 1, indices, distances);
+  search->nearestKSearch (picked_pt, 1, indices, distances);
 
   PCL_INFO ("Point index picked: %d (real: %d) - [%f, %f, %f]\n", idx, indices[0], picked_pt.x, picked_pt.y, picked_pt.z);
 
@@ -205,7 +219,7 @@ pp_callback (const pcl::visualization::PointPickingEvent& event, void* cookie)
     event.getPoint (pos.x, pos.y, pos.z);
     p->addText3D<pcl::PointXYZ> (idx_string, pos, 0.0005, 1.0, 1.0, 1.0, idx_string);
   }
-  
+
 }
 
 /* ---[ */
@@ -272,12 +286,21 @@ main (int argc, char** argv)
 
   bool use_vbos = false;
   pcl::console::parse_argument (argc, argv, "-vbo_rendering", use_vbos);
-  if (use_vbos) 
+  if (use_vbos)
     print_highlight ("Vertex Buffer Object (VBO) visualization enabled.\n");
 
+  bool useEDLRendering = false;
+  pcl::console::parse_argument(argc, argv, "-edl", useEDLRendering);
+  if (useEDLRendering)
+    print_highlight("EDL visualization enabled.\n");
+
   bool use_pp   = pcl::console::find_switch (argc, argv, "-use_point_picking");
-  if (use_pp) 
+  if (use_pp)
     print_highlight ("Point picking enabled.\n");
+
+  bool use_ap = pcl::console::find_switch(argc, argv, "-use_area_picking");
+  if (use_ap)
+    print_highlight("Area picking enabled. \n");
 
   bool use_optimal_l_colors = pcl::console::find_switch (argc, argv, "-optimal_label_colors");
   if (use_optimal_l_colors)
@@ -288,7 +311,7 @@ main (int argc, char** argv)
   if (!use_vbos)
   {
     pcl::console::parse_argument (argc, argv, "-immediate_rendering", use_immediate_rendering);
-    if (use_immediate_rendering) 
+    if (use_immediate_rendering)
       print_highlight ("Using immediate mode rendering.\n");
   }
 
@@ -299,8 +322,8 @@ main (int argc, char** argv)
   {
     print_highlight ("Multi-viewport rendering enabled.\n");
 
-    int y_s = static_cast<int>(std::floor (sqrt (static_cast<float>(p_file_indices.size () + vtk_file_indices.size ()))));
-    x_s = y_s + static_cast<int>(std::ceil (double (p_file_indices.size () + vtk_file_indices.size ()) / double (y_s) - y_s));
+    int y_s = static_cast<int>(std::floor (std::sqrt (static_cast<float>(p_file_indices.size () + vtk_file_indices.size ()))));
+    x_s = y_s + static_cast<int>(std::ceil (static_cast<double>(p_file_indices.size () + vtk_file_indices.size ()) / static_cast<double>(y_s) - y_s));
 
     if (!p_file_indices.empty ())
     {
@@ -361,6 +384,9 @@ main (int argc, char** argv)
     // Create the PCLVisualizer object here on the first encountered XYZ file
     if (!p)
       p.reset (new pcl::visualization::PCLVisualizer (argc, argv, "PCD viewer"));
+
+    if (useEDLRendering)
+      p->enableEDLRendering();
 
     // Multiview enabled?
     if (mview)
@@ -460,7 +486,7 @@ main (int argc, char** argv)
     {
       print_info ("[done, "); print_value ("%g", tt.toc ()); print_info (" ms : "); print_value ("%u", cloud->width * cloud->height); print_info (" points]\n");
       print_info ("Available dimensions: "); print_value ("%s\n", pcl::getFieldsList (*cloud).c_str ());
-      
+
       std::string name = "PCD Viewer :: " + std::string(argv[p_file_indices.at (i)]);
       pcl::visualization::ImageViewer::Ptr img (new pcl::visualization::ImageViewer (name));
       pcl::PointCloud<pcl::RGB> rgb_cloud;
@@ -481,8 +507,11 @@ main (int argc, char** argv)
       if (use_pp)   // Only enable the point picking callback if the command line parameter is enabled
         p->registerPointPickingCallback (&pp_callback, static_cast<void*> (&cloud));
 
-      // Set whether or not we should be using the vtkVertexBufferObjectMapper
-      p->setUseVbos (use_vbos);
+      if (use_ap)
+        p->registerAreaPickingCallback(&area_callback);
+
+      if (useEDLRendering)
+        p->enableEDLRendering();
 
       if (!p->cameraParamsSet () && !p->cameraFileLoaded ())
       {
@@ -690,7 +719,8 @@ main (int argc, char** argv)
     float ax_x = 0.0, ax_y = 0.0, ax_z = 0.0;
     pcl::console::parse_3x_arguments (argc, argv, "-ax_pos", ax_x, ax_y, ax_z);
     // Draw XYZ axes if command-line enabled
-    p->addCoordinateSystem (axes, ax_x, ax_y, ax_z, "global");
+    p->addCoordinateSystem (axes, ax_x, ax_y, ax_z, "global", 0);
+    p->getCoordinateActorMap()->at("global")->SetPickable(false);
   }
 
   // Clean up the memory used by the binary blob
@@ -718,7 +748,7 @@ main (int argc, char** argv)
         }
         img->spinOnce ();
       }
-        
+
       if (p)
       {
         if (p->wasStopped ())

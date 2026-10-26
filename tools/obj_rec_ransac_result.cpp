@@ -53,12 +53,16 @@
 #include <vtkDataArray.h>
 #include <vtkPointData.h>
 #include <vtkHedgeHog.h>
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+#include <vtkTransformFilter.h>
+#else
 #include <vtkTransformPolyDataFilter.h>
+#endif
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
 #include <vtkTransform.h>
+#include <chrono>
 #include <cstdio>
-#include <vector>
 #include <list>
 #include <thread>
 
@@ -107,7 +111,7 @@ main (int argc, char** argv)
 {
   printf ("\nUsage: ./pcl_obj_rec_ransac_scene_opps <pair_width> <voxel_size> <max_coplanarity_angle>\n\n");
 
-  const int num_params = 3;
+  constexpr int num_params = 3;
   float parameters[num_params] = {40.0f/*pair width*/, 5.0f/*voxel size*/, 15.0f/*max co-planarity angle*/};
   std::string parameter_names[num_params] = {"pair_width", "voxel_size", "max_coplanarity_angle"};
 
@@ -255,7 +259,7 @@ update (CallbackParameters* params)
   int i = 0;
 
   // Show the hypotheses
-  for ( std::list<ObjRecRANSAC::Output>::iterator it = rec_output.begin () ; it != rec_output.end () ; ++it, ++i )
+  for ( auto it = rec_output.begin () ; it != rec_output.end () ; ++it, ++i )
   {
     std::cout << it->object_name_ << " has a confidence value of " << it->match_confidence_ << std::endl;
 
@@ -279,7 +283,11 @@ update (CallbackParameters* params)
     vtk_transform->SetMatrix (vtk_mat);
 
     // Setup the transformator
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+    vtkSmartPointer<vtkTransformFilter> vtk_transformator = vtkSmartPointer<vtkTransformFilter>::New ();
+#else
     vtkSmartPointer<vtkTransformPolyDataFilter> vtk_transformator = vtkSmartPointer<vtkTransformPolyDataFilter>::New ();
+#endif
     vtk_transformator->SetTransform (vtk_transform);
     vtk_transformator->SetInputData (vtk_model);
     vtk_transformator->Update ();
@@ -287,7 +295,11 @@ update (CallbackParameters* params)
     // Visualize
     vtkSmartPointer<vtkActor> vtk_actor = vtkSmartPointer<vtkActor>::New();
     vtkSmartPointer<vtkPolyDataMapper> vtk_mapper = vtkSmartPointer<vtkPolyDataMapper>::New ();
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+    vtk_mapper->SetInputData (vtk_transformator->GetPolyDataOutput ());
+#else
     vtk_mapper->SetInputData (vtk_transformator->GetOutput ());
+#endif
     vtk_actor->SetMapper(vtk_mapper);
     // Set the appearance & add to the renderer
     vtk_actor->GetProperty ()->SetColor (0.6, 0.7, 0.9);

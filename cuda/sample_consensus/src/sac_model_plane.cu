@@ -161,8 +161,6 @@ namespace pcl
     SampleConsensusModelPlane<Storage>::generateModelHypotheses (
         Hypotheses &h, int max_iterations)
     {
-      using namespace thrust;
-
       // Create a vector of how many samples/coefficients do we want to get
       h.resize (max_iterations);
 
@@ -227,8 +225,6 @@ namespace pcl
     SampleConsensusModelPlane<Storage>::countWithinDistance (
         const Coefficients &model_coefficients, float threshold)
     {
-      using namespace thrust;
-
       // Needs a valid set of model coefficients
       if (model_coefficients.size () != 4)
       {
@@ -242,7 +238,7 @@ namespace pcl
       coefficients.z = model_coefficients[2];
       coefficients.w = model_coefficients[3];
 
-      return (int) count_if (
+      return (int) thrust::count_if (
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())),
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())) + 
                              indices_->size (),
@@ -270,8 +266,6 @@ namespace pcl
     SampleConsensusModelPlane<Storage>::selectWithinDistance (
         const Coefficients &model_coefficients, float threshold, IndicesPtr &inliers, IndicesPtr &inliers_stencil)
     {
-      using namespace thrust;
-
       // Needs a valid set of model coefficients
       if (model_coefficients.size () != 4)
       {
@@ -292,7 +286,7 @@ namespace pcl
       coefficients.w = model_coefficients[3];
 
       // Send the data to the device
-      transform (
+      thrust::transform (
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())),
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())) + 
                              nr_points,
@@ -316,8 +310,6 @@ namespace pcl
     SampleConsensusModelPlane<Storage>::selectWithinDistance (
         const Hypotheses &h, int idx, float threshold, IndicesPtr &inliers, IndicesPtr &inliers_stencil)
     {
-      using namespace thrust;
-
       // Needs a valid set of model coefficients
     /*  if (model_coefficients.size () != 4)
       {
@@ -339,7 +331,7 @@ namespace pcl
       coefficients.w = ((float4)h[idx]).w;
 
       // Send the data to the device
-      transform (
+      thrust::transform (
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())),
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())) + 
                              nr_points,
@@ -361,8 +353,6 @@ namespace pcl
     SampleConsensusModelPlane<Storage>::selectWithinDistance (
         Hypotheses &h, int idx, float threshold, IndicesPtr &inliers_stencil, float3 & centroid)
     {
-      using namespace thrust;
-
       // Needs a valid set of model coefficients
     /*  if (model_coefficients.size () != 4)
       {
@@ -382,7 +372,7 @@ namespace pcl
       coefficients.z = ((float4)h[idx]).z;
       coefficients.w = ((float4)h[idx]).w;
 
-      transform (
+      thrust::transform (
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())),
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())) + 
                              nr_points,

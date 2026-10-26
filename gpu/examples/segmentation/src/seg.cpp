@@ -4,7 +4,6 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/features/normal_3d.h>
-#include <pcl/kdtree/kdtree.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
@@ -26,6 +25,8 @@ main (int argc, char** argv)
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::PCDWriter writer;
   reader.read (argv[1], *cloud_filtered);
+  pcl::Indices unused;
+  pcl::removeNaNFromPointCloud(*cloud_filtered, *cloud_filtered, unused);
 
 /////////////////////////////////////////////
 /// CPU VERSION
@@ -81,7 +82,7 @@ main (int argc, char** argv)
   octree_device->build();
 
   std::vector<pcl::PointIndices> cluster_indices_gpu;
-  pcl::gpu::EuclideanClusterExtraction gec;
+  pcl::gpu::EuclideanClusterExtraction<pcl::PointXYZ> gec;
   gec.setClusterTolerance (0.02); // 2cm
   gec.setMinClusterSize (100);
   gec.setMaxClusterSize (25000);

@@ -249,7 +249,7 @@ pcl::ConcaveHull<PointInT>::performReconstruction (PointCloud &alpha_shape, std:
   int max_vertex_id = 0;
   FORALLvertices
   {
-    if (vertex->id + 1 > unsigned (max_vertex_id))
+    if (vertex->id + 1 > static_cast<unsigned>(max_vertex_id))
       max_vertex_id = vertex->id + 1;
   }
 
@@ -272,7 +272,7 @@ pcl::ConcaveHull<PointInT>::performReconstruction (PointCloud &alpha_shape, std:
       // Facets are tetrahedrons (3d)
       if (!facet->upperdelaunay)
       {
-        vertexT *anyVertex = static_cast<vertexT*> (facet->vertices->e[0].p);
+        auto *anyVertex = static_cast<vertexT*> (facet->vertices->e[0].p);
         double *center = facet->center;
         double r = qh_pointdist (anyVertex->point,center,dim_);
 
@@ -400,7 +400,7 @@ pcl::ConcaveHull<PointInT>::performReconstruction (PointCloud &alpha_shape, std:
       {
         // Check if the distance from any vertex to the facet->center
         // (center of the voronoi cell) is smaller than alpha
-        vertexT *anyVertex = static_cast<vertexT*>(facet->vertices->e[0].p);
+        auto *anyVertex = static_cast<vertexT*>(facet->vertices->e[0].p);
         double r = (sqrt ((anyVertex->point[0] - facet->center[0]) *
                           (anyVertex->point[0] - facet->center[0]) +
                           (anyVertex->point[1] - facet->center[1]) *
@@ -480,7 +480,7 @@ pcl::ConcaveHull<PointInT>::performReconstruction (PointCloud &alpha_shape, std:
     alpha_shape_sorted.resize (vertices);
 
     // iterate over edges until they are empty!
-    std::map<int, std::vector<int> >::iterator curr = edges.begin ();
+    auto curr = edges.begin ();
     int next = - 1;
     std::vector<bool> used (vertices, false);   // used to decide which direction should we take!
     std::vector<int> pcd_idx_start_polygons;
@@ -566,8 +566,7 @@ pcl::ConcaveHull<PointInT>::performReconstruction (PointCloud &alpha_shape, std:
   if (keep_information_)
   {
     // build a tree with the original points
-    pcl::KdTreeFLANN<PointInT> tree (true);
-    tree.setInputCloud (input_, indices_);
+    typename pcl::search::Search<PointInT>::Ptr tree(pcl::search::autoSelectMethod<PointInT>(input_, indices_, false, pcl::search::Purpose::one_knn_search));
 
     pcl::Indices neighbor;
     std::vector<float> distances;
@@ -581,7 +580,7 @@ pcl::ConcaveHull<PointInT>::performReconstruction (PointCloud &alpha_shape, std:
 
     for (const auto& point: alpha_shape)
     {
-      tree.nearestKSearch (point, 1, neighbor, distances);
+      tree->nearestKSearch (point, 1, neighbor, distances);
       hull_indices_.indices.push_back (neighbor[0]);
     }
 
@@ -617,6 +616,9 @@ pcl::ConcaveHull<PointInT>::performReconstruction (std::vector<pcl::Vertices> &p
 template <typename PointInT> void
 pcl::ConcaveHull<PointInT>::getHullPointIndices (pcl::PointIndices &hull_point_indices) const
 {
+  if (!keep_information_) {
+    PCL_WARN("[pcl::ConcaveHull::getHullPointIndices] You need to call setKeepInformation(true) before reconstructing!\n");
+  }
   hull_point_indices = hull_indices_;
 }
 

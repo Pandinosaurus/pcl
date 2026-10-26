@@ -58,12 +58,9 @@ namespace pcl
         /** \brief Parameters for fitting */
         struct Parameter
         {
-          double smoothness;
-          double rScale;
-          Parameter () :
-            smoothness (0.1), rScale (1.0)
-          {
-          }
+          double smoothness{0.1};
+          double rScale{1.0};
+          Parameter () = default;
         };
 
         struct FitParameter
@@ -92,6 +89,10 @@ namespace pcl
           * \param[in] nc B-Spline curve used for fitting.
           */
         FittingCurve2dPDM (NurbsDataCurve2d *data, const ON_NurbsCurve &nc);
+
+        /** \brief Default virtual destructor. */
+        virtual
+        ~FittingCurve2dPDM() = default;
 
         /** \brief Find the element in which the parameter xi lies.
           * \param[in] xi value in parameter domain of the B-Spline curve.

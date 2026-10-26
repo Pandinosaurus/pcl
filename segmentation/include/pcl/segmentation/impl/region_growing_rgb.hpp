@@ -43,17 +43,13 @@
 #include <pcl/console/print.h> // for PCL_ERROR
 #include <pcl/segmentation/region_growing_rgb.h>
 #include <pcl/search/search.h>
-#include <pcl/search/kdtree.h>
+#include <pcl/search/auto.h> // for pcl::search::autoSelectMethod
 
 #include <queue>
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template <typename PointT, typename NormalT>
 pcl::RegionGrowingRGB<PointT, NormalT>::RegionGrowingRGB () :
-  color_p2p_threshold_ (1225.0f),
-  color_r2r_threshold_ (10.0f),
-  distance_threshold_ (0.05f),
-  region_neighbour_number_ (100),
   point_distances_ (0),
   segment_neighbours_ (0),
   segment_distances_ (0),
@@ -195,7 +191,7 @@ pcl::RegionGrowingRGB<PointT, NormalT>::extract (std::vector <pcl::PointIndices>
   findSegmentNeighbours ();
   applyRegionMergingAlgorithm ();
 
-  std::vector<pcl::PointIndices>::iterator cluster_iter = clusters_.begin ();
+  auto cluster_iter = clusters_.begin ();
   while (cluster_iter != clusters_.end ())
   {
     if (cluster_iter->indices.size () < min_pts_per_cluster_ ||
@@ -208,7 +204,7 @@ pcl::RegionGrowingRGB<PointT, NormalT>::extract (std::vector <pcl::PointIndices>
   }
 
   clusters.reserve (clusters_.size ());
-  std::copy (clusters_.begin (), clusters_.end (), std::back_inserter (clusters));
+  std::copy (clusters_.cbegin (), clusters_.cend (), std::back_inserter (clusters));
 
   deinitCompute ();
 }
@@ -252,18 +248,22 @@ pcl::RegionGrowingRGB<PointT, NormalT>::prepareForSegmentation ()
   if (neighbour_number_ == 0)
     return (false);
 
-  // if user didn't set search method
-  if (!search_)
-    search_.reset (new pcl::search::KdTree<PointT>);
-
   if (indices_)
   {
     if (indices_->empty ())
       PCL_ERROR ("[pcl::RegionGrowingRGB::prepareForSegmentation] Empty given indices!\n");
-    search_->setInputCloud (input_, indices_);
+    if (!search_)
+      search_.reset (pcl::search::autoSelectMethod<PointT>(input_, indices_, true, pcl::search::Purpose::many_knn_search));
+    else
+      search_->setInputCloud (input_, indices_);
   }
   else
-    search_->setInputCloud (input_);
+  {
+    if (!search_)
+      search_.reset (pcl::search::autoSelectMethod<PointT>(input_, true, pcl::search::Purpose::many_knn_search));
+    else
+      search_->setInputCloud (input_);
+  }
 
   return (true);
 }
@@ -272,19 +272,17 @@ pcl::RegionGrowingRGB<PointT, NormalT>::prepareForSegmentation ()
 template <typename PointT, typename NormalT> void
 pcl::RegionGrowingRGB<PointT, NormalT>::findPointNeighbours ()
 {
-  int point_number = static_cast<int> (indices_->size ());
   pcl::Indices neighbours;
   std::vector<float> distances;
 
   point_neighbours_.resize (input_->size (), neighbours);
   point_distances_.resize (input_->size (), distances);
 
-  for (int i_point = 0; i_point < point_number; i_point++)
+  for (const auto& point_index: (*indices_))
   {
-    int point_index = (*indices_)[i_point];
     neighbours.clear ();
     distances.clear ();
-    search_->nearestKSearch (i_point, region_neighbour_number_, neighbours, distances);
+    search_->nearestKSearch ((*input_)[point_index], region_neighbour_number_, neighbours, distances);
     point_neighbours_[point_index].swap (neighbours);
     point_distances_[point_index].swap (distances);
   }
@@ -344,7 +342,7 @@ pcl::RegionGrowingRGB<PointT, NormalT>::findRegionsKNN (pcl::index_t index, pcl:
   {
     if (distances[i_seg] < max_dist)
     {
-      segment_neighbours.push (std::make_pair (distances[i_seg], i_seg) );
+      segment_neighbours.emplace (distances[i_seg], i_seg);
       if (segment_neighbours.size () > nghbr_number)
         segment_neighbours.pop ();
     }
@@ -481,14 +479,14 @@ pcl::RegionGrowingRGB<PointT, NormalT>::applyRegionMergingAlgorithm ()
       num_seg_in_homogeneous_region[i_reg] = 0;
       final_segment_number -= 1;
 
-      for (auto& nghbr : region_neighbours[reg_index])
-      {
-        if ( segment_labels_[ nghbr.second ] == reg_index )
-        {
-          nghbr.first = std::numeric_limits<float>::max ();
-          nghbr.second = 0;
-        }
-      }
+      const auto filtered_region_neighbours_reg_index_end = std::remove_if (
+        region_neighbours[reg_index].begin (),
+        region_neighbours[reg_index].end (),
+        [this, reg_index] (const auto& nghbr) { return segment_labels_[ nghbr.second ] == reg_index; });
+      const auto filtered_region_neighbours_reg_index_size = std::distance (
+        region_neighbours[reg_index].begin (), filtered_region_neighbours_reg_index_end);
+      region_neighbours[reg_index].resize (filtered_region_neighbours_reg_index_size);
+
       for (const auto& nghbr : region_neighbours[i_reg])
       {
         if ( segment_labels_[ nghbr.second ] != reg_index )
@@ -497,7 +495,11 @@ pcl::RegionGrowingRGB<PointT, NormalT>::applyRegionMergingAlgorithm ()
         }
       }
       region_neighbours[i_reg].clear ();
-      std::sort (region_neighbours[reg_index].begin (), region_neighbours[reg_index].end (), comparePair);
+      std::inplace_merge (
+        region_neighbours[reg_index].begin (),
+        std::next (region_neighbours[reg_index].begin (), filtered_region_neighbours_reg_index_size),
+        region_neighbours[reg_index].end (),
+        comparePair);
     }
   }
 
@@ -511,9 +513,9 @@ template <typename PointT, typename NormalT> float
 pcl::RegionGrowingRGB<PointT, NormalT>::calculateColorimetricalDifference (std::vector<unsigned int>& first_color, std::vector<unsigned int>& second_color) const
 {
   float difference = 0.0f;
-  difference += float ((first_color[0] - second_color[0]) * (first_color[0] - second_color[0]));
-  difference += float ((first_color[1] - second_color[1]) * (first_color[1] - second_color[1]));
-  difference += float ((first_color[2] - second_color[2]) * (first_color[2] - second_color[2]));
+  difference += static_cast<float>((first_color[0] - second_color[0]) * (first_color[0] - second_color[0]));
+  difference += static_cast<float>((first_color[1] - second_color[1]) * (first_color[1] - second_color[1]));
+  difference += static_cast<float>((first_color[2] - second_color[2]) * (first_color[2] - second_color[2]));
   return (difference);
 }
 

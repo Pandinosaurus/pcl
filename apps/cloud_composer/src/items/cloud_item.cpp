@@ -13,19 +13,16 @@ pcl::cloud_composer::CloudItem::CloudItem (QString name,
                                            const Eigen::Vector4f& origin, 
                                            const Eigen::Quaternionf& orientation,
                                            bool make_templated_cloud)
-  : CloudComposerItem (std::move(name))
+  : CloudComposerItem (name)
+  , cloud_blob_ptr_ (cloud_ptr)
   , origin_ (origin)
   , orientation_ (orientation)
-  , template_cloud_set_ (false)
-  , point_type_ (PointTypeFlags::NONE)
-  , is_sanitized_ (false)
 {
   
   //Sanitize the cloud data using passthrough
  // qDebug () << "Cloud size before passthrough : "<<cloud_ptr->width<<"x"<<cloud_ptr->height;
 
 //  qDebug () << "Cloud size after passthrough : "<<cloud_filtered->width<<"x"<<cloud_filtered->height;
-  cloud_blob_ptr_ = cloud_ptr;
   pcl::PCLPointCloud2::ConstPtr const_cloud_ptr = cloud_ptr;
   this->setData (QVariant::fromValue (const_cloud_ptr), ItemDataRole::CLOUD_BLOB);
   this->setData (QVariant::fromValue (origin_), ItemDataRole::ORIGIN);
@@ -59,19 +56,13 @@ pcl::cloud_composer::CloudItem::clone () const
 {
   pcl::PCLPointCloud2::Ptr cloud_copy (new pcl::PCLPointCloud2 (*cloud_blob_ptr_));
   //Vector4f and Quaternionf do deep copies using constructor
-  CloudItem* new_item = new CloudItem (this->text (), cloud_copy, origin_,orientation_);
+  auto* new_item = new CloudItem (this->text (), cloud_copy, origin_,orientation_);
   
   PropertiesModel* new_item_properties = new_item->getPropertiesModel ();
   new_item_properties->copyProperties (properties_);
   
   return new_item;  
 }
-
-pcl::cloud_composer::CloudItem::~CloudItem ()
-{
-  qDebug () << "Cloud item destructor";
-}
-
 
 void
 pcl::cloud_composer::CloudItem::paintView (pcl::visualization::PCLVisualizer::Ptr vis) const

@@ -44,6 +44,21 @@
 #include <pcl/test/gtest.h>
 #include <fstream> // for ofstream
 
+namespace {
+std::string
+readPLYHeader(const std::string& file_name)
+{
+  std::ifstream fs(file_name, std::ios::binary);
+  std::string header;
+  for (std::string line; std::getline(fs, line);) {
+    header += line + '\n';
+    if (line == "end_header")
+      break;
+  }
+  return header;
+}
+} // namespace
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TEST (PCL, PLYReaderWriter)
 {
@@ -80,10 +95,22 @@ TEST (PCL, PLYReaderWriter)
 
   // test for toPCLPointCloud2 ()
   pcl::PLYWriter writer;
-  writer.write ("test_pcl_io.ply", cloud_blob, Eigen::Vector4f::Zero (), Eigen::Quaternionf::Identity (), true, true);
+  const Eigen::Vector4f origin (0.0f, 0.5f, -1.0f, 0.0f);
+  const Eigen::Quaternionf orientation(std::sqrt(0.5f), std::sqrt(0.5f), 0.0f, 0.0f);
+  writer.write ("test_pcl_io.ply", cloud_blob, origin, orientation, true, true);
 
   pcl::PLYReader reader;
-  reader.read ("test_pcl_io.ply", cloud_blob2);
+  Eigen::Vector4f origin2;
+  Eigen::Quaternionf orientation2;
+  int ply_version;
+  reader.read ("test_pcl_io.ply", cloud_blob2, origin2, orientation2, ply_version);
+  EXPECT_NEAR (origin.x(), origin2.x(), 1e-5);
+  EXPECT_NEAR (origin.y(), origin2.y(), 1e-5);
+  EXPECT_NEAR (origin.z(), origin2.z(), 1e-5);
+  EXPECT_NEAR (orientation.x(), orientation2.x(), 1e-5);
+  EXPECT_NEAR (orientation.y(), orientation2.y(), 1e-5);
+  EXPECT_NEAR (orientation.z(), orientation2.z(), 1e-5);
+  EXPECT_NEAR (orientation.w(), orientation2.w(), 1e-5);
   //PLY DOES preserve organiziation
   EXPECT_EQ (cloud_blob.width * cloud_blob.height, cloud_blob2.width * cloud_blob2.height);
   EXPECT_EQ (cloud_blob.is_dense, cloud.is_dense);
@@ -105,6 +132,78 @@ TEST (PCL, PLYReaderWriter)
     EXPECT_FLOAT_EQ (cloud[counter].z, cloud2[counter].z);     // test for fromPCLPointCloud2 ()
     EXPECT_FLOAT_EQ (cloud[counter].intensity, cloud2[counter].intensity);  // test for fromPCLPointCloud2 ()
   }
+  remove ("test_pcl_io.ply");
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+TEST(PCL, PLYPolygonMeshFaceListSize)
+{
+  const std::string small_ascii_file = "test_small_polygon_ascii.ply";
+  const std::string small_binary_file = "test_small_polygon_binary.ply";
+  const std::string large_ascii_file = "test_large_polygon_ascii.ply";
+  const std::string large_binary_file = "test_large_polygon_binary.ply";
+  struct FilesCleanup {
+    const std::string& small_ascii;
+    const std::string& small_binary;
+    const std::string& large_ascii;
+    const std::string& large_binary;
+
+    ~FilesCleanup()
+    {
+      remove(small_ascii.c_str());
+      remove(small_binary.c_str());
+      remove(large_ascii.c_str());
+      remove(large_binary.c_str());
+    }
+  } cleanup{small_ascii_file, small_binary_file, large_ascii_file, large_binary_file};
+
+  pcl::PointCloud<pcl::PointXYZ> vertices;
+  vertices.resize(256);
+  for (std::size_t i = 0; i < vertices.size(); ++i) {
+    vertices[i].x = static_cast<float>(i);
+    vertices[i].y = static_cast<float>(i % 7);
+    vertices[i].z = 0.0f;
+  }
+
+  pcl::PolygonMesh mesh;
+  pcl::toPCLPointCloud2(vertices, mesh.cloud);
+  pcl::Vertices small_polygon;
+  small_polygon.vertices.reserve(255);
+  for (std::uint32_t i = 0; i < 255; ++i)
+    small_polygon.vertices.push_back(i);
+  mesh.polygons = {small_polygon};
+
+  ASSERT_EQ(pcl::io::savePLYFile(small_ascii_file, mesh), 0);
+  ASSERT_EQ(pcl::io::savePLYFileBinary(small_binary_file, mesh), 0);
+  const std::string uchar_property = "property list uchar int vertex_indices";
+  EXPECT_NE(readPLYHeader(small_ascii_file).find(uchar_property), std::string::npos);
+  EXPECT_NE(readPLYHeader(small_binary_file).find(uchar_property), std::string::npos);
+  for (const std::string& file_name : {small_ascii_file, small_binary_file}) {
+    pcl::PolygonMesh loaded;
+    ASSERT_EQ(pcl::io::loadPLYFile(file_name, loaded), 0);
+    ASSERT_EQ(loaded.polygons.size(), mesh.polygons.size());
+    EXPECT_EQ(loaded.polygons[0].vertices, small_polygon.vertices);
+  }
+
+  pcl::Vertices large_polygon;
+  large_polygon.vertices.reserve(vertices.size());
+  for (std::size_t i = 0; i < vertices.size(); ++i)
+    large_polygon.vertices.push_back(static_cast<std::uint32_t>(i));
+  mesh.polygons.push_back(large_polygon);
+
+  ASSERT_EQ(pcl::io::savePLYFile(large_ascii_file, mesh), 0);
+  ASSERT_EQ(pcl::io::savePLYFileBinary(large_binary_file, mesh), 0);
+  const std::string uint_property = "property list uint int vertex_indices";
+  EXPECT_NE(readPLYHeader(large_ascii_file).find(uint_property), std::string::npos);
+  EXPECT_NE(readPLYHeader(large_binary_file).find(uint_property), std::string::npos);
+
+  for (const std::string& file_name : {large_ascii_file, large_binary_file}) {
+    pcl::PolygonMesh loaded;
+    ASSERT_EQ(pcl::io::loadPLYFile(file_name, loaded), 0);
+    ASSERT_EQ(loaded.polygons.size(), mesh.polygons.size());
+    EXPECT_EQ(loaded.polygons[0].vertices, small_polygon.vertices);
+    EXPECT_EQ(loaded.polygons[1].vertices, large_polygon.vertices);
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -114,7 +213,7 @@ struct PLYTest : public ::testing::Test
   {}
 
   
-  ~PLYTest () { remove (mesh_file_ply_.c_str ()); }
+  ~PLYTest () override { remove (mesh_file_ply_.c_str ()); }
 
   std::string mesh_file_ply_;
 };
@@ -160,25 +259,25 @@ struct PLYColorTest : public PLYTest
           "property list uchar int vertex_indices\n"
           "end_header\n"
           "4.23607 0 1.61803 "
-            << unsigned (clr_1_.r) << ' '
-            << unsigned (clr_1_.g) << ' '
-            << unsigned (clr_1_.b) << ' '
-            << unsigned (clr_1_.a) << "\n"
+            << static_cast<unsigned>(clr_1_.r) << ' '
+            << static_cast<unsigned>(clr_1_.g) << ' '
+            << static_cast<unsigned>(clr_1_.b) << ' '
+            << static_cast<unsigned>(clr_1_.a) << "\n"
           "2.61803 2.61803 2.61803 "
-            << unsigned (clr_2_.r) << ' '
-            << unsigned (clr_2_.g) << ' '
-            << unsigned (clr_2_.b) << ' '
-            << unsigned (clr_2_.a) << "\n"
+            << static_cast<unsigned>(clr_2_.r) << ' '
+            << static_cast<unsigned>(clr_2_.g) << ' '
+            << static_cast<unsigned>(clr_2_.b) << ' '
+            << static_cast<unsigned>(clr_2_.a) << "\n"
           "0 1.61803 4.23607 "
-            << unsigned (clr_3_.r) << ' '
-            << unsigned (clr_3_.g) << ' '
-            << unsigned (clr_3_.b) << ' '
-            << unsigned (clr_3_.a) << "\n"
+            << static_cast<unsigned>(clr_3_.r) << ' '
+            << static_cast<unsigned>(clr_3_.g) << ' '
+            << static_cast<unsigned>(clr_3_.b) << ' '
+            << static_cast<unsigned>(clr_3_.a) << "\n"
           "0 -1.61803 4.23607 "
-            << unsigned (clr_4_.r) << ' '
-            << unsigned (clr_4_.g) << ' '
-            << unsigned (clr_4_.b) << ' '
-            << unsigned (clr_4_.a) << "\n"
+            << static_cast<unsigned>(clr_4_.r) << ' '
+            << static_cast<unsigned>(clr_4_.g) << ' '
+            << static_cast<unsigned>(clr_4_.b) << ' '
+            << static_cast<unsigned>(clr_4_.a) << "\n"
           "3 0 1 2\n"
           "3 1 2 3\n";
     fs.close ();
@@ -567,6 +666,7 @@ TEST_F (PLYTest, Float64Cloud)
 
   // create file
   std::ofstream fs;
+  fs.imbue (std::locale::classic ()); // make sure that floats are printed with decimal point
   fs.open (mesh_file_ply_.c_str ());
   fs << "ply\n"
         "format ascii 1.0\n"
@@ -590,7 +690,7 @@ TEST_F (PLYTest, Float64Cloud)
   }
   for (size_t pointIdx = 0; pointIdx < cloud.size(); ++pointIdx)
   {
-    unsigned char const * ptr = &cloud2.data[0] + pointIdx*cloud2.point_step;
+    unsigned char const * ptr = cloud2.data.data() + pointIdx*cloud2.point_step;
     double xValue, yValue, zValue;
     memcpy(
         reinterpret_cast<char*>(&xValue),

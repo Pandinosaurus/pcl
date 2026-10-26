@@ -41,6 +41,7 @@
 #include <pcl/keypoints/sift_keypoint.h>
 #include <pcl/common/io.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/search/auto.h> // for autoSelectMethod
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template <typename PointInT, typename PointOutT> void 
@@ -89,7 +90,6 @@ pcl::SIFTKeypoint<PointInT, PointOutT>::initCompute ()
   }
   
   this->setKSearch (1);
-  tree_.reset (new pcl::search::KdTree<PointInT> (true));
   return (true);
 }
 
@@ -128,12 +128,12 @@ pcl::SIFTKeypoint<PointInT, PointOutT>::detectKeypoints (PointCloudOut &output)
     cloud = temp;
 
     // Make sure the downsampled cloud still has enough points
-    const std::size_t min_nr_points = 25;
+    constexpr std::size_t min_nr_points = 25;
     if (cloud->size () < min_nr_points)
       break;
 
     // Update the KdTree with the downsampled points
-    tree_->setInputCloud (cloud);
+    tree_.reset (pcl::search::autoSelectMethod<PointInT>(cloud, true));
 
     // Detect keypoints for the current scale
     detectKeypointsForOctave (*cloud, *tree_, scale, nr_scales_per_octave_, output);
@@ -261,7 +261,7 @@ pcl::SIFTKeypoint<PointInT, PointOutT>::findScaleSpaceExtrema (
     const PointCloudIn &input, KdTree &tree, const Eigen::MatrixXf &diff_of_gauss, 
     pcl::Indices &extrema_indices, std::vector<int> &extrema_scales)
 {
-  const int k = 25;
+  constexpr int k = 25;
   pcl::Indices nn_indices (k);
   std::vector<float> nn_dist (k);
 

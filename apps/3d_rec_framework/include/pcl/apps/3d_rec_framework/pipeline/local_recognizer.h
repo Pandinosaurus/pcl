@@ -201,7 +201,6 @@ public:
     threshold_accept_model_hypothesis_ = 0.2f;
     ICP_iterations_ = 30;
     kdtree_splits_ = 512;
-    search_model_ = "";
     VOXEL_SIZE_ICP_ = 0.0025f;
     compute_table_plane_ = false;
   }
@@ -233,7 +232,7 @@ public:
     threshold_accept_model_hypothesis_ = t;
   }
 
-  ~LocalRecognitionPipeline() {}
+  ~LocalRecognitionPipeline() = default;
 
   void
   setKdtreeSplits(int n)

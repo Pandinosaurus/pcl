@@ -47,6 +47,7 @@
 #include <pcl/common/io.h> // for copyPointCloud
 #include <pcl/common/common.h> // for getMaxDistance
 #include <pcl/common/transforms.h>
+#include <pcl/search/auto.h> // for autoSelectMethod
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 template<typename PointInT, typename PointNT, typename PointOutT> void
@@ -97,6 +98,8 @@ pcl::OURCVFHEstimation<PointInT, PointNT, PointOutT>::extractEuclideanClustersSm
               static_cast<std::size_t>(normals.size()));
     return;
   }
+  // If tree gives sorted results, we can skip the first one because it is the query point itself
+  const std::size_t nn_start_idx = tree->getSortedResults () ? 1 : 0;
 
   // Create a bool vector of processed point indices, and initialize it to false
   std::vector<bool> processed (cloud.size (), false);
@@ -124,7 +127,7 @@ pcl::OURCVFHEstimation<PointInT, PointNT, PointOutT>::extractEuclideanClustersSm
         continue;
       }
 
-      for (std::size_t j = 1; j < nn_indices.size (); ++j) // nn_indices[0] should be sq_idx
+      for (std::size_t j = nn_start_idx; j < nn_indices.size (); ++j)
       {
         if (processed[nn_indices[j]]) // Has this point been processed before ?
           continue;
@@ -257,7 +260,7 @@ pcl::OURCVFHEstimation<PointInT, PointNT, PointOutT>::sgurf (Eigen::Vector3f & c
 
   scatter /= sum_w;
 
-  Eigen::JacobiSVD <Eigen::MatrixXf> svd (scatter, Eigen::ComputeFullV);
+  const Eigen::JacobiSVD <Eigen::Matrix3f> svd (scatter, Eigen::ComputeFullV);
   Eigen::Vector3f evx = svd.matrixV ().col (0);
   Eigen::Vector3f evy = svd.matrixV ().col (1);
   Eigen::Vector3f evz = svd.matrixV ().col (2);
@@ -600,17 +603,13 @@ pcl::OURCVFHEstimation<PointInT, PointNT, PointOutT>::computeFeature (PointCloud
   {
     //recompute normals and use them for clustering
     {
-      KdTreePtr normals_tree_filtered (new pcl::search::KdTree<pcl::PointNormal> (false));
-      normals_tree_filtered->setInputCloud (normals_filtered_cloud);
       pcl::NormalEstimation<PointNormal, PointNormal> n3d;
       n3d.setRadiusSearch (radius_normals_);
-      n3d.setSearchMethod (normals_tree_filtered);
       n3d.setInputCloud (normals_filtered_cloud);
       n3d.compute (*normals_filtered_cloud);
     }
 
-    KdTreePtr normals_tree (new pcl::search::KdTree<pcl::PointNormal> (false));
-    normals_tree->setInputCloud (normals_filtered_cloud);
+    KdTreePtr normals_tree (pcl::search::autoSelectMethod<pcl::PointNormal>(normals_filtered_cloud, false, pcl::search::Purpose::radius_search));
 
     extractEuclideanClustersSmooth (*normals_filtered_cloud, *normals_filtered_cloud, cluster_tolerance_, normals_tree, clusters,
                                     eps_angle_threshold_, static_cast<unsigned int> (min_points_));
@@ -621,7 +620,6 @@ pcl::OURCVFHEstimation<PointInT, PointNT, PointOutT>::computeFeature (PointCloud
     {
 
       pcl::PointIndices pi;
-      pcl::PointIndices pi_cvfh;
       pcl::PointIndices pi_filtered;
 
       clusters_.push_back (pi);

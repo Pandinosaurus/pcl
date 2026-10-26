@@ -37,8 +37,9 @@
  */
 
 #include <map>
+#include <pcl/common/common.h> // for getMinMax3D
 #include <pcl/filters/voxel_grid_label.h>
-#include <pcl/filters/impl/voxel_grid.hpp>
+#include <boost/mpl/size.hpp> // for boost::mpl::size
 
 //////////////////////////////////////////////////////////////////////////////
 void
@@ -111,7 +112,7 @@ pcl::VoxelGridLabel::applyFilter (PointCloud &output)
   int label_index = -1;
   label_index = pcl::getFieldIndex<PointXYZRGBL> ("label", fields);
 
-  std::vector<cloud_point_index_idx> index_vector;
+  std::vector<internal::cloud_point_index_idx> index_vector;
   index_vector.reserve(input_->size());
 
   // If we don't want to process the entire cloud, but rather filter points far away from the viewpoint first...
@@ -136,7 +137,7 @@ pcl::VoxelGridLabel::applyFilter (PointCloud &output)
           continue;
 
       // Get the distance value
-      const std::uint8_t* pt_data = reinterpret_cast<const std::uint8_t*> (&(*input_)[cp]);
+      const auto* pt_data = reinterpret_cast<const std::uint8_t*> (&(*input_)[cp]);
       float distance_value = 0;
       memcpy (&distance_value, pt_data + fields[distance_idx].offset, sizeof (float));
 
@@ -189,7 +190,7 @@ pcl::VoxelGridLabel::applyFilter (PointCloud &output)
 
   // Second pass: sort the index_vector vector using value representing target cell as index
   // in effect all points belonging to the same output cell will be next to each other
-  std::sort (index_vector.begin (), index_vector.end (), std::less<cloud_point_index_idx> ());
+  std::sort (index_vector.begin (), index_vector.end (), std::less<> ());
 
   // Third pass: count output cells
   // we need to skip all the same, adjacenent idx values
@@ -265,7 +266,7 @@ pcl::VoxelGridLabel::applyFilter (PointCloud &output)
       {
         // store the label in a map data structure
         std::uint32_t label = (*input_)[index_vector[cp].cloud_point_index].label;
-        std::map<int, int>::iterator it = labels.find (label);
+        auto it = labels.find (label);
         if (it == labels.end ())
           labels.insert (labels.begin (), std::pair<int, int> (label, 1));
         else

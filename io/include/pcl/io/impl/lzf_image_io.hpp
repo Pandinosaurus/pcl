@@ -69,7 +69,7 @@ LZFDepth16ImageReader::read (
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight () * 2)
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight () * 2)
   {
     PCL_DEBUG ("[pcl::io::LZFDepth16ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFDepth16ImageReader::read] Are you sure %s is a 16-bit depth PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight () * 2, filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -135,7 +135,7 @@ LZFDepth16ImageReader::readOMP (const std::string &filename,
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight () * 2)
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight () * 2)
   {
     PCL_DEBUG ("[pcl::io::LZFDepth16ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFDepth16ImageReader::read] Are you sure %s is a 16-bit depth PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight () * 2, filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -215,7 +215,7 @@ LZFRGB24ImageReader::read (
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight () * 3)
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight () * 3)
   {
     PCL_DEBUG ("[pcl::io::LZFRGB24ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFRGB24ImageReader::read] Are you sure %s is a 24-bit RGB PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight () * 3, filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -236,9 +236,9 @@ LZFRGB24ImageReader::read (
   cloud.resize (getWidth () * getHeight ());
 
   int rgb_idx = 0;
-  unsigned char *color_r = reinterpret_cast<unsigned char*> (&uncompressed_data[0]);
-  unsigned char *color_g = reinterpret_cast<unsigned char*> (&uncompressed_data[getWidth () * getHeight ()]);
-  unsigned char *color_b = reinterpret_cast<unsigned char*> (&uncompressed_data[2 * getWidth () * getHeight ()]);
+  auto *color_r = reinterpret_cast<unsigned char*> (uncompressed_data.data());
+  auto *color_g = reinterpret_cast<unsigned char*> (&uncompressed_data[getWidth () * getHeight ()]);
+  auto *color_b = reinterpret_cast<unsigned char*> (&uncompressed_data[2 * getWidth () * getHeight ()]);
 
   for (std::size_t i = 0; i < cloud.size (); ++i, ++rgb_idx)
   {
@@ -264,7 +264,7 @@ LZFRGB24ImageReader::readOMP (
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight () * 3)
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight () * 3)
   {
     PCL_DEBUG ("[pcl::io::LZFRGB24ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFRGB24ImageReader::read] Are you sure %s is a 24-bit RGB PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight () * 3, filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -284,9 +284,9 @@ LZFRGB24ImageReader::readOMP (
   cloud.height = getHeight ();
   cloud.resize (getWidth () * getHeight ());
 
-  unsigned char *color_r = reinterpret_cast<unsigned char*> (&uncompressed_data[0]);
-  unsigned char *color_g = reinterpret_cast<unsigned char*> (&uncompressed_data[getWidth () * getHeight ()]);
-  unsigned char *color_b = reinterpret_cast<unsigned char*> (&uncompressed_data[2 * getWidth () * getHeight ()]);
+  auto *color_r = reinterpret_cast<unsigned char*> (uncompressed_data.data());
+  auto *color_g = reinterpret_cast<unsigned char*> (&uncompressed_data[getWidth () * getHeight ()]);
+  auto *color_b = reinterpret_cast<unsigned char*> (&uncompressed_data[2 * getWidth () * getHeight ()]);
 
 #ifdef _OPENMP
 #pragma omp parallel for                   \
@@ -320,7 +320,7 @@ LZFYUV422ImageReader::read (
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight () * 2)
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight () * 2)
   {
     PCL_DEBUG ("[pcl::io::LZFYUV422ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFYUV422ImageReader::read] Are you sure %s is a 16-bit YUV422 PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight (), filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -341,9 +341,9 @@ LZFYUV422ImageReader::read (
   cloud.resize (getWidth () * getHeight ());
 
   int wh2 = getWidth () * getHeight () / 2;
-  unsigned char *color_u = reinterpret_cast<unsigned char*> (&uncompressed_data[0]);
-  unsigned char *color_y = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2]);
-  unsigned char *color_v = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2 + getWidth () * getHeight ()]);
+  auto *color_u = reinterpret_cast<unsigned char*> (uncompressed_data.data());
+  auto *color_y = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2]);
+  auto *color_v = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2 + getWidth () * getHeight ()]);
 
   int y_idx = 0;
   for (int i = 0; i < wh2; ++i, y_idx += 2)
@@ -378,7 +378,7 @@ LZFYUV422ImageReader::readOMP (
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight () * 2)
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight () * 2)
   {
     PCL_DEBUG ("[pcl::io::LZFYUV422ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFYUV422ImageReader::read] Are you sure %s is a 16-bit YUV422 PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight (), filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -399,9 +399,9 @@ LZFYUV422ImageReader::readOMP (
   cloud.resize (getWidth () * getHeight ());
 
   int wh2 = getWidth () * getHeight () / 2;
-  unsigned char *color_u = reinterpret_cast<unsigned char*> (&uncompressed_data[0]);
-  unsigned char *color_y = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2]);
-  unsigned char *color_v = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2 + getWidth () * getHeight ()]);
+  auto *color_u = reinterpret_cast<unsigned char*> (uncompressed_data.data());
+  auto *color_y = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2]);
+  auto *color_v = reinterpret_cast<unsigned char*> (&uncompressed_data[wh2 + getWidth () * getHeight ()]);
 
 #ifdef _OPENMP
 #pragma omp parallel for                        \
@@ -444,7 +444,7 @@ LZFBayer8ImageReader::read (
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight ())
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight ())
   {
     PCL_DEBUG ("[pcl::io::LZFBayer8ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFBayer8ImageReader::read] Are you sure %s is a 8-bit Bayer PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight (), filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -460,10 +460,10 @@ LZFBayer8ImageReader::read (
   }
 
   // Convert Bayer8 to RGB24
-  std::vector<unsigned char> rgb_buffer (getWidth () * getHeight () * 3);
+  std::vector<unsigned char> rgb_buffer (static_cast<std::size_t> (getWidth ()) * getHeight () * 3);
   DeBayer i;
-  i.debayerEdgeAware (reinterpret_cast<unsigned char*> (&uncompressed_data[0]),
-                     static_cast<unsigned char*> (&rgb_buffer[0]),
+  i.debayerEdgeAware (reinterpret_cast<unsigned char*> (uncompressed_data.data()),
+                     static_cast<unsigned char*> (rgb_buffer.data()),
                      getWidth (), getHeight ());
   // Copy to PointT
   cloud.width  = getWidth ();
@@ -494,7 +494,7 @@ LZFBayer8ImageReader::readOMP (
     return (false);
   }
 
-  if (uncompressed_size != getWidth () * getHeight ())
+  if (uncompressed_size != static_cast<std::uint64_t> (getWidth ()) * getHeight ())
   {
     PCL_DEBUG ("[pcl::io::LZFBayer8ImageReader::read] Uncompressed data has wrong size (%u), while in fact it should be %u bytes. \n[pcl::io::LZFBayer8ImageReader::read] Are you sure %s is a 8-bit Bayer PCLZF file? Identifier says: %s\n", uncompressed_size, getWidth () * getHeight (), filename.c_str (), getImageType ().c_str ());
     return (false);
@@ -510,10 +510,10 @@ LZFBayer8ImageReader::readOMP (
   }
 
   // Convert Bayer8 to RGB24
-  std::vector<unsigned char> rgb_buffer (getWidth () * getHeight () * 3);
+  std::vector<unsigned char> rgb_buffer (static_cast<std::size_t> (getWidth ()) * getHeight () * 3);
   DeBayer i;
-  i.debayerEdgeAware (reinterpret_cast<unsigned char*> (&uncompressed_data[0]),
-                     static_cast<unsigned char*> (&rgb_buffer[0]),
+  i.debayerEdgeAware (reinterpret_cast<unsigned char*> (uncompressed_data.data()),
+                     static_cast<unsigned char*> (rgb_buffer.data()),
                      getWidth (), getHeight ());
   // Copy to PointT
   cloud.width  = getWidth ();

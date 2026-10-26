@@ -46,6 +46,9 @@
 
 namespace pcl
 {
+  // Forward declarations
+  template <typename T> class PointRepresentation;
+
   namespace search
   {
     /** \brief Generic search class. All search wrappers must inherit from this.
@@ -84,6 +87,8 @@ namespace pcl
         using IndicesPtr = pcl::IndicesPtr;
         using IndicesConstPtr = pcl::IndicesConstPtr;
 
+        using PointRepresentationConstPtr = shared_ptr<const PointRepresentation<PointT> >;
+
         /** Constructor. */
         Search (const std::string& name = "", bool sorted = false);
 
@@ -109,12 +114,24 @@ namespace pcl
         virtual bool 
         getSortedResults ();
 
+        /** \brief Provide a pointer to the point representation to use to convert points into
+         * k-D vectors. If you want to use this function, it is recommended to do so _before_
+         * calling setInputCloud. Some search methods will ignore this (e.g. octree or organized search).
+         * \param[in] point_representation the const shared pointer to a PointRepresentation
+         * \return True if success, false if a problem occurred or the search method will not use the point representation
+         */
+        virtual bool
+        setPointRepresentation (const PointRepresentationConstPtr&)
+        {
+          return (false);
+        }
         
         /** \brief Pass the input dataset that the search will be performed on.
           * \param[in] cloud a const pointer to the PointCloud data
           * \param[in] indices the point indices subset that is to be used from the cloud
+          * \return True if successful, false if an error occurred, for example because the point cloud is unsuited for the search method.
           */
-        virtual void
+        virtual bool
         setInputCloud (const PointCloudConstPtr& cloud, 
                        const IndicesConstPtr &indices = IndicesConstPtr ());
 
@@ -383,7 +400,7 @@ namespace pcl
             pc.resize (cloud.size ());
             for (std::size_t i = 0; i < cloud.size (); ++i)
               pcl::for_each_type <FieldList> (pcl::NdConcatenateFunctor <PointTDiff, PointT> (cloud[i], pc[i]));
-            radiusSearch (pc, Indices (), radius, k_indices, k_sqr_distances, max_nn);
+            radiusSearch (pc, Indices(), radius, k_indices, k_sqr_distances, max_nn);
           }
           else
           {
@@ -394,6 +411,19 @@ namespace pcl
           }
         }
 
+        /** \brief Set the number of threads to use for searching over multiple points or indices
+         * \param[in] nr_threads the number of threads to use (0 automatically sets the threads based on the hardware)
+         */
+        void setNumberOfThreads(unsigned int nr_threads) {
+          #ifdef _OPENMP
+          num_threads_ = nr_threads != 0 ? nr_threads : omp_get_num_procs();
+          #else
+          if (nr_threads != 1) {
+            PCL_WARN("OpenMP is not available. Keeping number of threads unchanged at 1\n");
+          }
+          #endif
+        }
+
       protected:
         void 
         sortResults (Indices& indices, std::vector<float>& distances) const;
@@ -402,6 +432,9 @@ namespace pcl
         IndicesConstPtr indices_;
         bool sorted_results_;
         std::string name_;
+
+        /** \brief The number of threads to use when searching over multiple points or indices */
+        unsigned int num_threads_{1};
         
       private:
         struct Compare

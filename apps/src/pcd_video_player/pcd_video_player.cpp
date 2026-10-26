@@ -47,12 +47,16 @@
 #include <QMutexLocker>
 #include <QObject>
 #include <QRadioButton>
+#if VTK_MAJOR_VERSION >= 9 || (VTK_MAJOR_VERSION == 8 && VTK_MINOR_VERSION >= 2)
+#define HAS_QVTKOPENGLWINDOW_H
+#include <QVTKOpenGLWindow.h>
+#endif
 #include <ui_pcd_video_player.h>
 
 #include <vtkCamera.h>
 #include <vtkGenericOpenGLRenderWindow.h>
-#include <vtkRenderWindow.h>
 #include <vtkRendererCollection.h>
+#include <vtkRenderWindow.h>
 
 #include <fstream>
 #include <iostream>
@@ -163,11 +167,10 @@ PCDVideoPlayer::selectFolderButtonPressed()
                                            QFileDialog::ShowDirsOnly |
                                                QFileDialog::DontResolveSymlinks);
 
-  boost::filesystem::directory_iterator end_itr;
+  pcl_fs::directory_iterator end_itr;
 
-  if (boost::filesystem::is_directory(dir_.toStdString())) {
-    for (boost::filesystem::directory_iterator itr(dir_.toStdString()); itr != end_itr;
-         ++itr) {
+  if (pcl_fs::is_directory(dir_.toStdString())) {
+    for (pcl_fs::directory_iterator itr(dir_.toStdString()); itr != end_itr; ++itr) {
       std::string ext = itr->path().extension().string();
       if (ext == ".pcd") {
         pcd_files_.push_back(itr->path().string());
@@ -207,7 +210,7 @@ void
 PCDVideoPlayer::selectFilesButtonPressed()
 {
   pcd_files_.clear(); // Clear the std::vector
-  pcd_paths_.clear(); // Clear the boost filesystem paths
+  pcd_paths_.clear(); // Clear the filesystem paths
 
   QStringList qt_pcd_files = QFileDialog::getOpenFileNames(
       this, "Select one or more PCD files to open", "/home", "PointClouds (*.pcd)");
@@ -221,8 +224,8 @@ PCDVideoPlayer::selectFilesButtonPressed()
     return;
   }
 
-  for (int i = 0; i < qt_pcd_files.size(); i++) {
-    pcd_files_.push_back(qt_pcd_files.at(i).toStdString());
+  for (const auto& qt_pcd_file : qt_pcd_files) {
+    pcd_files_.push_back(qt_pcd_file.toStdString());
   }
 
   current_frame_ = 0;
@@ -310,6 +313,9 @@ print_usage()
 int
 main(int argc, char** argv)
 {
+#ifdef HAS_QVTKOPENGLWINDOW_H
+  QSurfaceFormat::setDefaultFormat(QVTKOpenGLWindow::defaultFormat());
+#endif
   QApplication app(argc, argv);
 
   PCDVideoPlayer VideoPlayer;

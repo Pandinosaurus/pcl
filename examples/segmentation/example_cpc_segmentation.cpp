@@ -42,6 +42,7 @@
 #include <pcl/console/parse.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/point_types.h>
 
 #include <pcl/segmentation/cpc_segmentation.h>
 
@@ -77,39 +78,39 @@ keyboardEventOccurred (const pcl::visualization::KeyboardEvent& event_arg,
   if (event_arg.keyUp ())
     switch (key)
     {
-      case (int) '1':
+      case static_cast<int>('1'):
         show_normals = !show_normals;
         normals_changed = true;
         break;
-      case (int) '2':
+      case static_cast<int>('2'):
         show_adjacency = !show_adjacency;
         break;
-      case (int) '3':
+      case static_cast<int>('3'):
         show_supervoxels = !show_supervoxels;
         break;
-      case (int) '4':
+      case static_cast<int>('4'):
         show_segmentation = !show_segmentation;
         break;
-      case (int) '5':
+      case static_cast<int>('5'):
         normals_scale *= 1.25;
         normals_changed = true;
         break;
-      case (int) '6':
+      case static_cast<int>('6'):
         normals_scale *= 0.8;
         normals_changed = true;
         break;
-      case (int) '7':
+      case static_cast<int>('7'):
         line_width += 0.5;
         line_changed = true;
         break;
-      case (int) '8':
+      case static_cast<int>('8'):
         if (line_width <= 1)
           break;
         line_width -= 0.5;
         line_changed = true;
         break;
-      case (int) 'd':
-      case (int) 'D':
+      case static_cast<int>('d'):
+      case static_cast<int>('D'):
         show_help = !show_help;
         break;
       default:
@@ -210,7 +211,7 @@ CPCSegmentation Parameters: \n\
   pcl::PCLPointCloud2 input_pointcloud2;
   if (pcl::io::loadPCDFile (pcd_filename, input_pointcloud2))
   {
-    PCL_ERROR ("ERROR: Could not read input point cloud %s.\n", pcd_filename.c_str ());
+    PCL_ERROR ("ERROR: Could not read input point cloud %s.\n", pcd_filename.c_str());
     return (3);
   }
   pcl::fromPCLPointCloud2 (input_pointcloud2, *input_cloud_ptr);
@@ -361,15 +362,14 @@ CPCSegmentation Parameters: \n\
     PCL_INFO ("Refining supervoxels\n");
     super.refineSupervoxels (2, supervoxel_clusters);
   }
-  std::stringstream temp;
-  temp << "  Nr. Supervoxels: " << supervoxel_clusters.size () << "\n";
-  PCL_INFO (temp.str ().c_str ());
+
+  PCL_INFO("  Nr. Supervoxels: %zu\n", supervoxel_clusters.size());
 
   PCL_INFO ("Getting supervoxel adjacency\n");
   std::multimap<std::uint32_t, std::uint32_t>supervoxel_adjacency;
   super.getSupervoxelAdjacency (supervoxel_adjacency);
 
-  /// Get the cloud of supervoxel centroid with normals and the colored cloud with supervoxel coloring (this is used for visulization)
+  /// Get the cloud of supervoxel centroid with normals and the colored cloud with supervoxel coloring (this is used for visualization)
   pcl::PointCloud<pcl::PointNormal>::Ptr sv_centroid_normal_cloud = pcl::SupervoxelClustering<PointT>::makeSupervoxelNormalCloud (supervoxel_clusters);
 
   /// Set parameters for LCCP preprocessing and CPC (CPC inherits from LCCP, thus it includes LCCP's functionality)
@@ -455,7 +455,7 @@ CPCSegmentation Parameters: \n\
 
     // Create a polydata to store everything in
     vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New ();
-    for (VertexIterator itr = vertex_iterator_range.first; itr != vertex_iterator_range.second; ++itr)
+    for (auto itr = vertex_iterator_range.first; itr != vertex_iterator_range.second; ++itr)
     {
       const std::uint32_t sv_label = sv_adjacency_list[*itr];
       std::pair<AdjacencyIterator, AdjacencyIterator> neighbors = boost::adjacent_vertices (*itr, sv_adjacency_list);

@@ -42,10 +42,11 @@
 
 #include <pcl/common/io.h> // for getFields
 #include <pcl/registration/correspondence_types.h>
-#include <pcl/search/kdtree.h>
+#include <pcl/search/search.h>
 #include <pcl/memory.h>
 #include <pcl/pcl_base.h>
 #include <pcl/pcl_macros.h>
+#include <pcl/point_representation.h>
 
 #include <string>
 
@@ -70,11 +71,13 @@ public:
   using PCLBase<PointSource>::indices_;
   using PCLBase<PointSource>::setIndices;
 
-  using KdTree = pcl::search::KdTree<PointTarget>;
+  using KdTree = pcl::search::Search<PointTarget>;
   using KdTreePtr = typename KdTree::Ptr;
+  using KdTreeConstPtr = typename KdTree::ConstPtr;
 
-  using KdTreeReciprocal = pcl::search::KdTree<PointSource>;
-  using KdTreeReciprocalPtr = typename KdTree::Ptr;
+  using KdTreeReciprocal = pcl::search::Search<PointSource>;
+  using KdTreeReciprocalPtr = typename KdTreeReciprocal::Ptr;
+  using KdTreeReciprocalConstPtr = typename KdTreeReciprocal::ConstPtr;
 
   using PointCloudSource = pcl::PointCloud<PointSource>;
   using PointCloudSourcePtr = typename PointCloudSource::Ptr;
@@ -84,20 +87,17 @@ public:
   using PointCloudTargetPtr = typename PointCloudTarget::Ptr;
   using PointCloudTargetConstPtr = typename PointCloudTarget::ConstPtr;
 
-  using PointRepresentationConstPtr = typename KdTree::PointRepresentationConstPtr;
+  using PointRepresentationConstPtr =
+      typename PointRepresentation<PointTarget>::ConstPtr;
+  using PointRepresentationReciprocalConstPtr =
+      typename PointRepresentation<PointSource>::ConstPtr;
 
   /** \brief Empty constructor. */
   CorrespondenceEstimationBase()
   : corr_name_("CorrespondenceEstimationBase")
-  , tree_(new pcl::search::KdTree<PointTarget>)
-  , tree_reciprocal_(new pcl::search::KdTree<PointSource>)
   , target_()
   , point_representation_()
   , input_transformed_()
-  , target_cloud_updated_(true)
-  , source_cloud_updated_(true)
-  , force_no_recompute_(false)
-  , force_no_recompute_reciprocal_(false)
   {}
 
   /** \brief Empty destructor */
@@ -137,6 +137,23 @@ public:
     return (target_);
   }
 
+  /** \brief Set the number of threads to use.
+   * \param nr_threads the number of hardware threads to use (0 sets the value back to
+   * automatic)
+   */
+  void
+  setNumberOfThreads(const unsigned int nr_threads)
+  {
+#ifdef _OPENMP
+    num_threads_ = nr_threads != 0 ? nr_threads : omp_get_num_procs();
+#else
+    if (nr_threads != 1) {
+      PCL_WARN("OpenMP is not available. Keeping number of threads unchanged at 1\n");
+    }
+    num_threads_ = 1;
+#endif
+  }
+
   /** \brief See if this rejector requires source normals */
   virtual bool
   requiresSourceNormals() const
@@ -145,7 +162,8 @@ public:
   }
 
   /** \brief Abstract method for setting the source normals */
-  virtual void setSourceNormals(pcl::PCLPointCloud2::ConstPtr /*cloud2*/)
+  virtual void
+  setSourceNormals(const pcl::PCLPointCloud2::ConstPtr /*cloud2*/)
   {
     PCL_WARN("[pcl::registration::%s::setSourceNormals] This class does not require "
              "input source normals\n",
@@ -160,7 +178,8 @@ public:
   }
 
   /** \brief Abstract method for setting the target normals */
-  virtual void setTargetNormals(pcl::PCLPointCloud2::ConstPtr /*cloud2*/)
+  virtual void
+  setTargetNormals(const pcl::PCLPointCloud2::ConstPtr /*cloud2*/)
   {
     PCL_WARN("[pcl::registration::%s::setTargetNormals] This class does not require "
              "input target normals\n",
@@ -209,7 +228,7 @@ public:
    * confident that the tree will be set correctly.
    */
   inline void
-  setSearchMethodTarget(const KdTreePtr& tree, bool force_no_recompute = false)
+  setSearchMethodTarget(const KdTreePtr& tree, const bool force_no_recompute = false)
   {
     tree_ = tree;
     force_no_recompute_ = force_no_recompute;
@@ -234,7 +253,7 @@ public:
    */
   inline void
   setSearchMethodSource(const KdTreeReciprocalPtr& tree,
-                        bool force_no_recompute = false)
+                        const bool force_no_recompute = false)
   {
     tree_reciprocal_ = tree;
     force_no_recompute_reciprocal_ = force_no_recompute;
@@ -258,7 +277,7 @@ public:
   virtual void
   determineCorrespondences(
       pcl::Correspondences& correspondences,
-      double max_distance = std::numeric_limits<double>::max()) = 0;
+      const double max_distance = std::numeric_limits<double>::max()) = 0;
 
   /** \brief Determine the reciprocal correspondences between input and target cloud.
    * A correspondence is considered reciprocal if both Src_i has Tgt_i as a
@@ -271,10 +290,10 @@ public:
   virtual void
   determineReciprocalCorrespondences(
       pcl::Correspondences& correspondences,
-      double max_distance = std::numeric_limits<double>::max()) = 0;
+      const double max_distance = std::numeric_limits<double>::max()) = 0;
 
-  /** \brief Provide a boost shared pointer to the PointRepresentation to be used
-   * when searching for nearest neighbors.
+  /** \brief Provide a boost shared pointer to the PointRepresentation for target cloud
+   * to be used when searching for nearest neighbors.
    *
    * \param[in] point_representation the PointRepresentation to be used by the
    * k-D tree for nearest neighbor search
@@ -283,6 +302,19 @@ public:
   setPointRepresentation(const PointRepresentationConstPtr& point_representation)
   {
     point_representation_ = point_representation;
+  }
+
+  /** \brief Provide a boost shared pointer to the PointRepresentation for source cloud
+   * to be used when searching for nearest neighbors.
+   *
+   * \param[in] point_representation the PointRepresentation to be used by the
+   * k-D tree for nearest neighbor search
+   */
+  inline void
+  setPointRepresentationReciprocal(
+      const PointRepresentationReciprocalConstPtr& point_representation_reciprocal)
+  {
+    point_representation_reciprocal_ = point_representation_reciprocal;
   }
 
   /** \brief Clone and cast to CorrespondenceEstimationBase */
@@ -305,8 +337,11 @@ protected:
   /** \brief The target point cloud dataset indices. */
   IndicesPtr target_indices_;
 
-  /** \brief The point representation used (internal). */
+  /** \brief The target point representation used (internal). */
   PointRepresentationConstPtr point_representation_;
+
+  /** \brief The source point representation used (internal). */
+  PointRepresentationReciprocalConstPtr point_representation_reciprocal_;
 
   /** \brief The transformed input source point cloud dataset. */
   PointCloudTargetPtr input_transformed_;
@@ -332,23 +367,25 @@ protected:
   /** \brief Variable that stores whether we have a new target cloud, meaning we need to
    * pre-process it again. This way, we avoid rebuilding the kd-tree for the target
    * cloud every time the determineCorrespondences () method is called. */
-  bool target_cloud_updated_;
+  bool target_cloud_updated_{true};
   /** \brief Variable that stores whether we have a new source cloud, meaning we need to
    * pre-process it again. This way, we avoid rebuilding the reciprocal kd-tree for the
    * source cloud every time the determineCorrespondences () method is called. */
-  bool source_cloud_updated_;
+  bool source_cloud_updated_{true};
   /** \brief A flag which, if set, means the tree operating on the target cloud
    * will never be recomputed*/
-  bool force_no_recompute_;
+  bool force_no_recompute_{false};
 
   /** \brief A flag which, if set, means the tree operating on the source cloud
    * will never be recomputed*/
-  bool force_no_recompute_reciprocal_;
+  bool force_no_recompute_reciprocal_{false};
+
+  unsigned int num_threads_{1};
 };
 
-/** \brief @b CorrespondenceEstimation represents the base class for
+/** \brief @b CorrespondenceEstimation represents a simple class for
  * determining correspondences between target and query point
- * sets/features.
+ * sets/features, using nearest neighbor search.
  *
  * Code example:
  *
@@ -394,8 +431,24 @@ public:
   using CorrespondenceEstimationBase<PointSource, PointTarget, Scalar>::input_fields_;
   using PCLBase<PointSource>::deinitCompute;
 
-  using KdTree = pcl::search::KdTree<PointTarget>;
-  using KdTreePtr = typename KdTree::Ptr;
+  using KdTree =
+      typename CorrespondenceEstimationBase<PointSource, PointTarget, Scalar>::KdTree;
+  using KdTreePtr = typename CorrespondenceEstimationBase<PointSource,
+                                                          PointTarget,
+                                                          Scalar>::KdTreePtr;
+  using KdTreeConstPtr = typename CorrespondenceEstimationBase<PointSource,
+                                                               PointTarget,
+                                                               Scalar>::KdTreeConstPtr;
+  using KdTreeReciprocal =
+      typename CorrespondenceEstimationBase<PointSource, PointTarget, Scalar>::
+          KdTreeReciprocal;
+  using KdTreeReciprocalPtr =
+      typename CorrespondenceEstimationBase<PointSource, PointTarget, Scalar>::
+          KdTreeReciprocalPtr;
+
+  using KdTreeReciprocalConstPtr =
+      typename CorrespondenceEstimationBase<PointSource, PointTarget, Scalar>::
+          KdTreeReciprocalConstPtr;
 
   using PointCloudSource = pcl::PointCloud<PointSource>;
   using PointCloudSourcePtr = typename PointCloudSource::Ptr;
@@ -405,7 +458,10 @@ public:
   using PointCloudTargetPtr = typename PointCloudTarget::Ptr;
   using PointCloudTargetConstPtr = typename PointCloudTarget::ConstPtr;
 
-  using PointRepresentationConstPtr = typename KdTree::PointRepresentationConstPtr;
+  using PointRepresentationConstPtr =
+      typename PointRepresentation<PointTarget>::ConstPtr;
+  using PointRepresentationReciprocalConstPtr =
+      typename PointRepresentation<PointSource>::ConstPtr;
 
   /** \brief Empty constructor. */
   CorrespondenceEstimation() { corr_name_ = "CorrespondenceEstimation"; }
@@ -421,7 +477,7 @@ public:
   void
   determineCorrespondences(
       pcl::Correspondences& correspondences,
-      double max_distance = std::numeric_limits<double>::max()) override;
+      const double max_distance = std::numeric_limits<double>::max()) override;
 
   /** \brief Determine the reciprocal correspondences between input and target cloud.
    * A correspondence is considered reciprocal if both Src_i has Tgt_i as a
@@ -434,7 +490,7 @@ public:
   void
   determineReciprocalCorrespondences(
       pcl::Correspondences& correspondences,
-      double max_distance = std::numeric_limits<double>::max()) override;
+      const double max_distance = std::numeric_limits<double>::max()) override;
 
   /** \brief Clone and cast to CorrespondenceEstimationBase */
   typename CorrespondenceEstimationBase<PointSource, PointTarget, Scalar>::Ptr
@@ -443,6 +499,9 @@ public:
     Ptr copy(new CorrespondenceEstimation<PointSource, PointTarget, Scalar>(*this));
     return (copy);
   }
+
+protected:
+  using CorrespondenceEstimationBase<PointSource, PointTarget, Scalar>::num_threads_;
 };
 } // namespace registration
 } // namespace pcl

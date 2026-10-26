@@ -48,6 +48,7 @@
 #include <vector_types.h>
 #include <stdio.h>
 #include <limits>
+#include <iostream> // for std::cerr
 
 // specify inlier computation method
 //#define KINECT_NORMALS
@@ -310,8 +311,6 @@ namespace pcl
     SampleConsensusModel1PointPlane<Storage>::generateModelHypotheses (
         Hypotheses &h, int max_iterations)
     {
-      using namespace thrust;
-
       // Create a vector of how many samples/coefficients do we want to get
       h.resize (max_iterations);
 
@@ -328,7 +327,7 @@ namespace pcl
       //thrust::counting_iterator<int> first (0);
       // Input: Point Cloud, Indices
       // Output: Hypotheses
-      transform (//first, first + max_iterations,
+      thrust::transform (//first, first + max_iterations,
                  //index_sequence_begin, 
                  //index_sequence_begin + max_iterations, 
                  randoms.begin (), randoms.begin () + max_iterations,
@@ -344,8 +343,6 @@ namespace pcl
     SampleConsensusModel1PointPlane<Storage>::generateModelHypotheses (
         Hypotheses &h, Samples &samples, int max_iterations)
     {
-      using namespace thrust;
-
       // Create a vector of how many samples/coefficients do we want to get
       h.resize (max_iterations);
       samples.resize (max_iterations);
@@ -364,7 +361,7 @@ namespace pcl
       //thrust::counting_iterator<int> first (0);
       // Input: Point Cloud, Indices
       // Output: Hypotheses
-      transform (//first, first + max_iterations,
+      thrust::transform (//first, first + max_iterations,
                  //index_sequence_begin, 
                  //index_sequence_begin + max_iterations, 
                  randoms.begin (), randoms.begin () + max_iterations,
@@ -546,8 +543,6 @@ namespace pcl
     SampleConsensusModel1PointPlane<Storage>::countWithinDistance (
         const Coefficients &model_coefficients, float threshold)
     {
-      using namespace thrust;
-
       // Needs a valid set of model coefficients
       if (model_coefficients.size () != 4)
       {
@@ -561,7 +556,7 @@ namespace pcl
       coefficients.z = model_coefficients[2];
       coefficients.w = model_coefficients[3];
 
-      return (int) count_if (
+      return (int) thrust::count_if (
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())),
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())) + 
                              indices_->size (),
@@ -589,8 +584,6 @@ namespace pcl
     SampleConsensusModel1PointPlane<Storage>::selectWithinDistance (
         const Coefficients &model_coefficients, float threshold, IndicesPtr &inliers, IndicesPtr &inliers_stencil)
     {
-      using namespace thrust;
-
       // Needs a valid set of model coefficients
       if (model_coefficients.size () != 4)
       {
@@ -616,7 +609,7 @@ namespace pcl
       {
     //  pcl::ScopeTime t ("transform");
       // Send the data to the device
-      transform (
+      thrust::transform (
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())),
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())) + 
                              nr_points,
@@ -649,8 +642,6 @@ namespace pcl
     SampleConsensusModel1PointPlane<Storage>::selectWithinDistance (
         const Hypotheses &h, int idx, float threshold, IndicesPtr &inliers, IndicesPtr &inliers_stencil)
     {
-      using namespace thrust;
-
       // Needs a valid set of model coefficients
     /*  if (model_coefficients.size () != 4)
       {
@@ -677,7 +668,7 @@ namespace pcl
       {
     //  pcl::ScopeTime t ("transform");
       // Send the data to the device
-      transform (
+      thrust::transform (
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())),
           make_zip_iterator (make_tuple (input_->points.begin (), indices_->begin ())) + 
                              nr_points,
@@ -712,7 +703,6 @@ namespace pcl
         Hypotheses &h, int idx, float threshold, IndicesPtr &inliers_stencil, float3 &c)
     {
       float angle_threshold = 0.26f;
-      using namespace thrust;
 
       int nr_points = (int) indices_stencil_->size ();
       float bad_point = std::numeric_limits<float>::quiet_NaN ();

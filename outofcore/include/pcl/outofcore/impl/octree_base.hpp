@@ -44,7 +44,12 @@
 #include <pcl/outofcore/octree_base.h>
 
 // JSON
+#include <pcl/pcl_config.h> // for HAVE_CJSON
+#if defined(HAVE_CJSON)
+#include <cjson/cJSON.h>
+#else
 #include <pcl/outofcore/cJSON.h>
+#endif
 
 #include <pcl/filters/random_sample.h>
 #include <pcl/filters/extract_indices.h>
@@ -93,7 +98,7 @@ namespace pcl
       root_node_->m_tree_ = this;
 
       // Set the path to the outofcore octree metadata (unique to the root folder) ending in .octree
-      boost::filesystem::path treepath = root_name.parent_path () / (boost::filesystem::basename (root_name) + TREE_EXTENSION_);
+      boost::filesystem::path treepath = root_name.parent_path () / (root_name.stem ().string () + TREE_EXTENSION_);
 
       //Load the JSON metadata
       metadata_->loadMetadataFromDisk (treepath);
@@ -169,7 +174,7 @@ namespace pcl
       root_node_->m_tree_ = this;
       
       // Set root nodes file path
-      boost::filesystem::path treepath = dir / (boost::filesystem::basename (root_name) + TREE_EXTENSION_);
+      boost::filesystem::path treepath = dir / (root_name.stem ().string () + TREE_EXTENSION_);
 
       //fill the fields of the metadata
       metadata_->setCoordinateSystem (coord_sys);
@@ -209,7 +214,7 @@ namespace pcl
     {
       std::unique_lock < std::shared_timed_mutex > lock (read_write_mutex_);
 
-      const bool _FORCE_BB_CHECK = true;
+      constexpr bool _FORCE_BB_CHECK = true;
       
       std::uint64_t pt_added = root_node_->addDataToLeaf (p, _FORCE_BB_CHECK);
 
@@ -430,7 +435,7 @@ namespace pcl
     ////////////////////////////////////////////////////////////////////////////////
 
     template<typename ContainerT, typename PointT> void
-    OutofcoreOctreeBase<ContainerT, PointT>::writeVPythonVisual (const boost::filesystem::path filename)
+    OutofcoreOctreeBase<ContainerT, PointT>::writeVPythonVisual (const boost::filesystem::path& filename)
     {
       std::ofstream f (filename.c_str ());
 
@@ -569,7 +574,7 @@ namespace pcl
 
       std::unique_lock < std::shared_timed_mutex > lock (read_write_mutex_);
 
-      const int number_of_nodes = 1;
+      constexpr int number_of_nodes = 1;
 
       std::vector<BranchNode*> current_branch (number_of_nodes, static_cast<BranchNode*>(nullptr));
       current_branch[0] = root_node_;
@@ -612,7 +617,7 @@ namespace pcl
         assert (leaf_input_cloud->width*leaf_input_cloud->height > 0);
         
         //go up the tree, re-downsampling the full resolution leaf cloud at lower and lower resolution
-        for (std::int64_t level = static_cast<std::int64_t>(current_branch.size ()-1); level >= 1; level--)
+        for (auto level = static_cast<std::int64_t>(current_branch.size ()-1); level >= 1; level--)
         {
           BranchNode* target_parent = current_branch[level-1];
           assert (target_parent != nullptr);
@@ -629,7 +634,7 @@ namespace pcl
           lod_filter_ptr_->setInputCloud (leaf_input_cloud);
 
           //set sample size to 1/8 of total points (12.5%)
-          std::uint64_t sample_size = static_cast<std::uint64_t> (static_cast<double> (leaf_input_cloud->width*leaf_input_cloud->height) * current_depth_sample_percent);
+          auto sample_size = static_cast<std::uint64_t> (static_cast<double> (leaf_input_cloud->width*leaf_input_cloud->height) * current_depth_sample_percent);
 
           if (sample_size == 0)
             sample_size = 1;
@@ -699,9 +704,9 @@ namespace pcl
     template<typename ContainerT, typename PointT> bool
     OutofcoreOctreeBase<ContainerT, PointT>::checkExtension (const boost::filesystem::path& path_name)
     {
-      if (boost::filesystem::extension (path_name) != OutofcoreOctreeBaseNode<ContainerT, PointT>::node_index_extension)
+      if (path_name.extension ().string () != OutofcoreOctreeBaseNode<ContainerT, PointT>::node_index_extension)
       {
-        PCL_ERROR ( "[pcl::outofcore::OutofcoreOctreeBase] Wrong root node file extension: %s. The tree must have a root node ending in %s\n", boost::filesystem::extension (path_name).c_str (), OutofcoreOctreeBaseNode<ContainerT, PointT>::node_index_extension.c_str () );
+        PCL_ERROR ( "[pcl::outofcore::OutofcoreOctreeBase] Wrong root node file extension: %s. The tree must have a root node ending in %s\n", path_name.extension ().string ().c_str (), OutofcoreOctreeBaseNode<ContainerT, PointT>::node_index_extension.c_str () );
         return (false);
       }
 
@@ -736,7 +741,7 @@ namespace pcl
       if (side_length < leaf_resolution)
           return (0);
           
-      std::uint64_t res = static_cast<std::uint64_t> (std::ceil (std::log2 (side_length / leaf_resolution)));
+      auto res = static_cast<std::uint64_t> (std::ceil (std::log2 (side_length / leaf_resolution)));
       
       PCL_DEBUG ("[pcl::outofcore::OutofcoreOctreeBase::calculateDepth] Setting depth to %d\n",res);
       return (res);

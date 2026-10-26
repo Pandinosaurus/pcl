@@ -1,20 +1,22 @@
 set(SUBSYS_NAME global_tests)
 set(SUBSYS_DESC "Point cloud library global unit tests")
 
-set(DEFAULT OFF)
-set(build TRUE)
-set(REASON "Disabled by default")
-PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ${DEFAULT} "${REASON}")
-PCL_SUBSYS_DEPEND(build "${SUBSYS_NAME}" DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
+PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" OFF)
+PCL_SUBSYS_DEPEND(build NAME ${SUBSYS_NAME} DEPS ${SUBSYS_DEPS} OPT_DEPS ${OPT_DEPS})
 
 if(NOT build)
   return()
 endif()
 
-find_package(GTestSource REQUIRED)
-include_directories(SYSTEM ${GTEST_INCLUDE_DIRS} ${GTEST_SRC_DIR})
+find_package(GTest REQUIRED)
 
-add_library(pcl_gtest STATIC ${GTEST_SRC_DIR}/src/gtest-all.cc)
+add_library(pcl_gtest INTERFACE)
+if(TARGET GTest::gtest)
+  target_link_libraries(pcl_gtest INTERFACE GTest::gtest)
+else()
+  target_link_libraries(pcl_gtest INTERFACE GTest::GTest)
+endif()
+target_include_directories(pcl_gtest INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 enable_testing()
 
@@ -40,11 +42,9 @@ if(EXCLUDE_TESTS)
   set(PCL_CTEST_ARGUMENTS ${PCL_CTEST_ARGUMENTS} -E "(${EXCLUDE_TESTS_REGEX})")
 endif()
 
-add_custom_target(tests "${CMAKE_CTEST_COMMAND}" ${PCL_CTEST_ARGUMENTS} -V -T Test VERBATIM)
+add_custom_target(tests "${CMAKE_CTEST_COMMAND}" ${PCL_CTEST_ARGUMENTS} -V -T Test VERBATIM USES_TERMINAL)
 
 set_target_properties(tests PROPERTIES FOLDER "Tests")
-
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 add_subdirectory(2d)
 add_subdirectory(common)

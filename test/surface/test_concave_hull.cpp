@@ -45,6 +45,7 @@
 #include <pcl/features/normal_3d.h>
 #include <pcl/surface/concave_hull.h>
 #include <pcl/sample_consensus/model_types.h> // for SACMODEL_PLANE
+#include <pcl/search/kdtree.h>
 #include <pcl/filters/project_inliers.h>
 
 
@@ -213,8 +214,8 @@ TEST (PCL, ConcaveHull_LTable)
   {
     for (std::size_t j = 0; j <= 2; j++)
     {
-      cloud_out_ltable[npoints].x = float (i) * 0.5f;
-      cloud_out_ltable[npoints].y = -float (j) * 0.5f;
+      cloud_out_ltable[npoints].x = static_cast<float>(i) * 0.5f;
+      cloud_out_ltable[npoints].y = -static_cast<float>(j) * 0.5f;
       cloud_out_ltable[npoints].z = 0.f;
       npoints++;
     }
@@ -224,8 +225,8 @@ TEST (PCL, ConcaveHull_LTable)
   {
     for(std::size_t j = 3; j < 8; j++)
     {
-      cloud_out_ltable[npoints].x = float (i) * 0.5f;
-      cloud_out_ltable[npoints].y = -float (j) * 0.5f;
+      cloud_out_ltable[npoints].x = static_cast<float>(i) * 0.5f;
+      cloud_out_ltable[npoints].y = -static_cast<float>(j) * 0.5f;
       cloud_out_ltable[npoints].z = 0.f;
       npoints++;
     }

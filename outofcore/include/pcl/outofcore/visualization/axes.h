@@ -26,15 +26,18 @@ public:
   // Operators
   // -----------------------------------------------------------------------------
   Axes (std::string name, float size = 1.0) :
-      Object (name)
+      Object (name), axes_ (vtkSmartPointer<vtkAxes>::New ())
   {
-    axes_ = vtkSmartPointer<vtkAxes>::New ();
     axes_->SetOrigin (0, 0, 0);
     axes_->SetScaleFactor (size);
     axes_->Update ();
 
     vtkSmartPointer<vtkFloatArray> axes_colors = vtkSmartPointer<vtkFloatArray>::New ();
+#if (VTK_MAJOR_VERSION > 9) || (VTK_MAJOR_VERSION == 9 && VTK_MINOR_VERSION >= 7)
+    axes_colors->ReserveValues (6);
+#else
     axes_colors->Allocate (6);
+#endif
     axes_colors->InsertNextValue (0.0);
     axes_colors->InsertNextValue (0.0);
     axes_colors->InsertNextValue (0.5);
@@ -60,7 +63,6 @@ public:
 
     addActor (axes_actor_);
   }
-  //~Axes () { }
 
   // Accessors
   // -----------------------------------------------------------------------------

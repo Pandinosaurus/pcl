@@ -125,11 +125,14 @@ namespace pcl
             Node (std::vector<BoundedObject*>& sorted_objects, int first_id, int last_id)
             {
               // Initialize the bounds of the node
-              memcpy (bounds_, sorted_objects[first_id]->getBounds (), 6*sizeof (float));
+              auto firstBounds = sorted_objects[first_id]->getBounds();
+              std::copy(firstBounds, firstBounds + 6, bounds_);
 
               // Expand the bounds of the node
               for ( int i = first_id + 1 ; i <= last_id ; ++i )
+              {
                 aux::expandBoundingBox(bounds_, sorted_objects[i]->getBounds());
+              }
 
               // Shall we create children?
               if ( first_id != last_id )
@@ -187,8 +190,8 @@ namespace pcl
             inline bool
             intersect(const float box[6]) const
             {
-              return !(box[1] < bounds_[0] || box[3] < bounds_[2] || box[5] < bounds_[4] ||
-                   box[0] > bounds_[1] || box[2] > bounds_[3] || box[4] > bounds_[5]);
+              return (box[1] >= bounds_[0] && box[3] >= bounds_[2] && box[5] >= bounds_[4] &&
+                      box[0] <= bounds_[1] && box[2] <= bounds_[3] && box[4] <= bounds_[5]);
             }
 
             /** \brief Computes and returns the volume of the bounding box of this node. */

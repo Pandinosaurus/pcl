@@ -1,10 +1,10 @@
 set(SUBSYS_NAME surface)
 set(SUBSYS_DESC "Point cloud surface library")
-set(SUBSYS_DEPS common search kdtree octree)
+set(SUBSYS_DEPS common search octree)
+set(SUBSYS_EXT_DEPS "")
 
-set(build TRUE)
 PCL_SUBSYS_OPTION(build "${SUBSYS_NAME}" "${SUBSYS_DESC}" ON)
-PCL_SUBSYS_DEPEND(build "${SUBSYS_NAME}" DEPS ${SUBSYS_DEPS} OPT_DEPS qhull vtk)
+PCL_SUBSYS_DEPEND(build NAME ${SUBSYS_NAME} DEPS ${SUBSYS_DEPS} OPT_DEPS qhull vtk OpenMP)
 
 PCL_ADD_DOC("${SUBSYS_NAME}")
 
@@ -66,6 +66,10 @@ if(BUILD_surface_on_nurbs)
   
   include(src/3rdparty/opennurbs/openNURBS.cmake)
   include(src/on_nurbs/on_nurbs.cmake)
+  
+  find_package(ZLIB REQUIRED)
+  list(APPEND SUBSYS_EXT_DEPS zlib)
+  list(APPEND ON_NURBS_LIBRARIES ZLIB::ZLIB)
 endif()
 
 set(POISSON_INCLUDES
@@ -126,8 +130,6 @@ set(srcs
 )
 
 set(incs
-  "include/pcl/${SUBSYS_NAME}/boost.h"
-  "include/pcl/${SUBSYS_NAME}/eigen.h"
   "include/pcl/${SUBSYS_NAME}/ear_clipping.h"
   "include/pcl/${SUBSYS_NAME}/gp3.h"
   "include/pcl/${SUBSYS_NAME}/grid_projection.h"
@@ -164,14 +166,9 @@ set(impl_incs
 )
 
 set(LIB_NAME "pcl_${SUBSYS_NAME}")
-
-include_directories(
-  "${CMAKE_CURRENT_SOURCE_DIR}/include"
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-)
 PCL_ADD_LIBRARY(${LIB_NAME} COMPONENT ${SUBSYS_NAME} SOURCES ${srcs} ${incs} ${impl_incs} ${VTK_SMOOTHING_INCLUDES} ${POISSON_INCLUDES} ${OPENNURBS_INCLUDES} ${ON_NURBS_INCLUDES})
 
-target_link_libraries("${LIB_NAME}" pcl_common pcl_search pcl_kdtree pcl_octree ${ON_NURBS_LIBRARIES})
+target_link_libraries("${LIB_NAME}" pcl_common pcl_search pcl_octree ${ON_NURBS_LIBRARIES})
 
 if(VTK_FOUND)
   if(${VTK_VERSION} VERSION_GREATER_EQUAL 9.0)
@@ -181,7 +178,6 @@ if(VTK_FOUND)
                           VTK::FiltersModeling
                           VTK::FiltersCore)
   else()
-    include_directories(SYSTEM ${VTK_INCLUDE_DIRS})
     link_directories(${VTK_LIBRARY_DIRS})
     target_link_libraries("${LIB_NAME}"
                           vtkCommonCore
@@ -196,7 +192,7 @@ if(QHULL_FOUND)
   target_link_libraries("${LIB_NAME}" QHULL::QHULL)
 endif()
 
-PCL_MAKE_PKGCONFIG(${LIB_NAME} COMPONENT ${SUBSYS_NAME} DESC ${SUBSYS_DESC} PCL_DEPS ${SUBSYS_DEPS})
+PCL_MAKE_PKGCONFIG(${LIB_NAME} COMPONENT ${SUBSYS_NAME} DESC ${SUBSYS_DESC} PCL_DEPS ${SUBSYS_DEPS} EXT_DEPS ${SUBSYS_EXT_DEPS})
 
 # Install include files
 PCL_ADD_INCLUDES("${SUBSYS_NAME}" "${SUBSYS_NAME}" ${incs})

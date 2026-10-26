@@ -41,6 +41,7 @@
 #include <pcl/common/common.h> // for getMinMax3D
 #include <pcl/common/time.h>
 #include <pcl/point_types.h>
+#include <pcl/search/auto.h>
 
 #include <memory>
 #include <numeric>
@@ -61,6 +62,8 @@ inline void extractEuclideanClustersSmooth(const typename pcl::PointCloud<PointT
     PCL_ERROR("[pcl::extractEuclideanClusters] Number of points in the input point cloud different than normals!\n");
     return;
   }
+  // If tree gives sorted results, we can skip the first one because it is the query point itself
+  const std::size_t nn_start_idx = tree->getSortedResults () ? 1 : 0;
 
   // Create a bool vector of processed point indices, and initialize it to false
   std::vector<bool> processed (cloud.size (), false);
@@ -96,7 +99,7 @@ inline void extractEuclideanClustersSmooth(const typename pcl::PointCloud<PointT
         continue;
       }
 
-      for (std::size_t j = 1; j < nn_indices.size (); ++j) // nn_indices[0] should be sq_idx
+      for (std::size_t j = nn_start_idx; j < nn_indices.size (); ++j)
       {
         if (processed[nn_indices[j]]) // Has this point been processed before ?
           continue;
@@ -206,11 +209,7 @@ void pcl::GlobalHypothesesVerification<ModelT, SceneT>::initialize()
   NormalEstimator_ n3d;
   scene_normals_.reset (new pcl::PointCloud<pcl::Normal> ());
 
-  typename pcl::search::KdTree<SceneT>::Ptr normals_tree (new pcl::search::KdTree<SceneT>);
-  normals_tree->setInputCloud (scene_cloud_downsampled_);
-
   n3d.setRadiusSearch (radius_normals_);
-  n3d.setSearchMethod (normals_tree);
   n3d.setInputCloud (scene_cloud_downsampled_);
   n3d.compute (*scene_normals_);
 
@@ -244,8 +243,7 @@ void pcl::GlobalHypothesesVerification<ModelT, SceneT>::initialize()
   if (detect_clutter_)
   {
     //initialize kdtree for search
-    scene_downsampled_tree_.reset (new pcl::search::KdTree<SceneT>);
-    scene_downsampled_tree_->setInputCloud (scene_cloud_downsampled_);
+    scene_downsampled_tree_.reset (pcl::search::autoSelectMethod<SceneT>(scene_cloud_downsampled_, true, pcl::search::Purpose::radius_search));
 
     std::vector<pcl::PointIndices> clusters;
     double eps_angle_threshold = 0.2;
@@ -410,9 +408,9 @@ void pcl::GlobalHypothesesVerification<ModelT, SceneT>::SAOptimize(std::vector<i
   }
 
   int occupied_multiple = 0;
-  for(std::size_t i=0; i < complete_cloud_occupancy_by_RM_.size(); i++) {
-    if(complete_cloud_occupancy_by_RM_[i] > 1) {
-      occupied_multiple+=complete_cloud_occupancy_by_RM_[i];
+  for(const auto& i : complete_cloud_occupancy_by_RM_) {
+    if(i > 1) {
+      occupied_multiple+=i;
     }
   }
 
@@ -533,12 +531,9 @@ bool pcl::GlobalHypothesesVerification<ModelT, SceneT>::addModel(typename pcl::P
   }
 
   //compute normals unless given (now do it always...)
-  typename pcl::search::KdTree<ModelT>::Ptr normals_tree (new pcl::search::KdTree<ModelT>);
   pcl::NormalEstimation<ModelT, pcl::Normal> n3d;
   recog_model->normals_.reset (new pcl::PointCloud<pcl::Normal> ());
-  normals_tree->setInputCloud (recog_model->cloud_);
   n3d.setRadiusSearch (radius_normals_);
-  n3d.setSearchMethod (normals_tree);
   n3d.setInputCloud ((recog_model->cloud_));
   n3d.compute (*(recog_model->normals_));
 
@@ -635,7 +630,7 @@ bool pcl::GlobalHypothesesVerification<ModelT, SceneT>::addModel(typename pcl::P
     Eigen::Vector3f scene_p_normal = (*scene_normals_)[it->first].getNormalVector3fMap ();
     Eigen::Vector3f model_p_normal =
         (*recog_model->normals_)[it->second->at(closest).first].getNormalVector3fMap();
-    float dotp = scene_p_normal.dot (model_p_normal) * 1.f; //[-1,1] from antiparallel trough perpendicular to parallel
+    float dotp = scene_p_normal.dot (model_p_normal) * 1.f; //[-1,1] from antiparallel through perpendicular to parallel
 
     if (dotp < 0.f)
       dotp = 0.f;
@@ -725,7 +720,7 @@ void pcl::GlobalHypothesesVerification<ModelT, SceneT>::computeClutterCue(Recogn
           //using normals to weight clutter points
           Eigen::Vector3f scene_p_normal = (*scene_normals_)[neighborhood_index.first].getNormalVector3fMap ();
           Eigen::Vector3f model_p_normal = (*scene_normals_)[recog_model->explained_[neighborhood_index.second]].getNormalVector3fMap ();
-          float dotp = scene_p_normal.dot (model_p_normal); //[-1,1] from antiparallel trough perpendicular to parallel
+          float dotp = scene_p_normal.dot (model_p_normal); //[-1,1] from antiparallel through perpendicular to parallel
 
           if (dotp < 0)
             dotp = 0.f;

@@ -39,11 +39,10 @@
 #include <pcl/console/print.h>
 #include <pcl/io/openni_grabber.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/io/timestamp.h>
 #include <pcl/keypoints/harris_2d.h>
 #include <pcl/tracking/pyramidal_klt.h>
 #include <pcl/visualization/image_viewer.h>
-
-#include <boost/date_time/posix_time/posix_time.hpp> // for to_iso_string, local_time
 
 #include <mutex>
 
@@ -57,7 +56,7 @@
     double now = pcl::getTime();                                                       \
     ++count;                                                                           \
     if (now - last >= 1.0) {                                                           \
-      std::cout << "Average framerate(" << _WHAT_ << "): "                             \
+      std::cout << "Average framerate(" << (_WHAT_) << "): "                             \
                 << double(count) / double(now - last) << " Hz" << std::endl;           \
       count = 0;                                                                       \
       last = now;                                                                      \
@@ -112,9 +111,7 @@ public:
   using Cloud = pcl::PointCloud<PointType>;
   using CloudConstPtr = typename Cloud::ConstPtr;
 
-  OpenNIViewer(pcl::Grabber& grabber)
-  : grabber_(grabber), rgb_data_(nullptr), rgb_data_size_(0)
-  {}
+  OpenNIViewer(pcl::Grabber& grabber) : grabber_(grabber) {}
 
   void
   detect_keypoints(const CloudConstPtr& cloud)
@@ -175,9 +172,7 @@ public:
       if ((event.getKeyCode() == 's') || (event.getKeyCode() == 'S')) {
         std::lock_guard<std::mutex> lock(cloud_mutex_);
         frame.str("frame-");
-        frame << boost::posix_time::to_iso_string(
-                     boost::posix_time::microsec_clock::local_time())
-              << ".pcd";
+        frame << pcl::getTimestamp() << ".pcd";
         writer.writeBinaryCompressed(frame.str(), *cloud_);
         PCL_INFO("Written cloud %s.\n", frame.str().c_str());
       }
@@ -291,13 +286,13 @@ public:
 
   CloudConstPtr cloud_;
   openni_wrapper::Image::Ptr image_;
-  unsigned char* rgb_data_;
-  unsigned rgb_data_size_;
+  unsigned char* rgb_data_{nullptr};
+  unsigned rgb_data_size_{0};
   typename pcl::tracking::PyramidalKLTTracker<PointType>::Ptr tracker_;
   pcl::PointCloud<pcl::PointUV>::ConstPtr keypoints_;
   pcl::PointIndicesConstPtr points_;
   pcl::shared_ptr<const std::vector<int>> points_status_;
-  int counter_;
+  int counter_{0};
 };
 
 // Create the PCLVisualizer object
@@ -312,12 +307,14 @@ main(int argc, char** argv)
   pcl::OpenNIGrabber::Mode image_mode = pcl::OpenNIGrabber::OpenNI_Default_Mode;
   bool xyz = false;
 
+  if (pcl::console::find_argument(argc, argv, "-h") != -1 ||
+      pcl::console::find_argument(argc, argv, "--help") != -1) {
+    printHelp(argc, argv);
+    return 1;
+  }
+
   if (argc >= 2) {
     device_id = argv[1];
-    if (device_id == "--help" || device_id == "-h") {
-      printHelp(argc, argv);
-      return 0;
-    }
     if (device_id == "-l") {
       if (argc >= 3) {
         pcl::OpenNIGrabber grabber(argv[2]);
@@ -326,12 +323,9 @@ main(int argc, char** argv)
                   << " , " << device->getProductName() << std::endl;
         std::vector<std::pair<int, XnMapOutputMode>> modes =
             grabber.getAvailableDepthModes();
-        for (std::vector<std::pair<int, XnMapOutputMode>>::const_iterator it =
-                 modes.begin();
-             it != modes.end();
-             ++it) {
-          std::cout << it->first << " = " << it->second.nXRes << " x "
-                    << it->second.nYRes << " @ " << it->second.nFPS << std::endl;
+        for (const auto& mode : modes) {
+          std::cout << mode.first << " = " << mode.second.nXRes << " x "
+                    << mode.second.nYRes << " @ " << mode.second.nFPS << std::endl;
         }
 
         if (device->hasImageStream()) {
@@ -339,12 +333,9 @@ main(int argc, char** argv)
                     << "Supported image modes for device: " << device->getVendorName()
                     << " , " << device->getProductName() << std::endl;
           modes = grabber.getAvailableImageModes();
-          for (std::vector<std::pair<int, XnMapOutputMode>>::const_iterator it =
-                   modes.begin();
-               it != modes.end();
-               ++it) {
-            std::cout << it->first << " = " << it->second.nXRes << " x "
-                      << it->second.nYRes << " @ " << it->second.nFPS << std::endl;
+          for (const auto& mode : modes) {
+            std::cout << mode.first << " = " << mode.second.nXRes << " x "
+                      << mode.second.nYRes << " @ " << mode.second.nFPS << std::endl;
           }
         }
       }

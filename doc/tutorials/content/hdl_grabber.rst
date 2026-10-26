@@ -46,7 +46,7 @@ PCAP Files
 
 `Wireshark <http://www.wireshark.org/>`_ is a popular Network Packet Analyzer Program which
 is available for most platforms, including Linux, MacOS and Windows.  This tool uses a defacto
-standard network packet capture file format called `PCAP <http://en.wikipedia.org/wiki/Pcap>`_.
+standard network packet capture file format called `PCAP <https://en.wikipedia.org/wiki/Pcap>`_.
 Many publicly available Velodyne HDL packet captures use this PCAP file format as a means of
 recording and playback.  These PCAP files can be used with the HDL Grabber if PCL is compiled with
 PCAP support.
@@ -212,10 +212,6 @@ Add the following lines to your CMakeLists.txt file:
    project(pcl_hdl_viewer_simple)
 
    find_package(PCL 1.2 REQUIRED)
-
-   include_directories(${PCL_INCLUDE_DIRS})
-   link_directories(${PCL_LIBRARY_DIRS})
-   add_definitions(${PCL_DEFINITIONS})
 
    add_executable(pcl_hdl_viewer_simple hdl_viewer_simple.cpp)
    target_link_libraries(pcl_hdl_viewer_simple ${PCL_LIBRARIES})

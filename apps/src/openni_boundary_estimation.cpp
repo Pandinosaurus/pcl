@@ -36,11 +36,13 @@
  */
 
 #include <pcl/common/time.h>
+#include <pcl/console/parse.h>
 #include <pcl/features/boundary.h>
 #include <pcl/features/integral_image_normal.h>
 #include <pcl/filters/approximate_voxel_grid.h>
 #include <pcl/io/openni_camera/openni_driver.h>
 #include <pcl/io/openni_grabber.h>
+#include <pcl/search/organized.h> // for OrganizedNeighbor
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -62,7 +64,7 @@ using ColorHandlerConstPtr = ColorHandler::ConstPtr;
     double now = pcl::getTime();                                                       \
     ++count;                                                                           \
     if (now - last >= 1.0) {                                                           \
-      std::cout << "Average framerate(" << _WHAT_ << "): "                             \
+      std::cout << "Average framerate(" << (_WHAT_) << "): "                             \
                 << double(count) / double(now - last) << " Hz" << std::endl;           \
       count = 0;                                                                       \
       last = now;                                                                      \
@@ -144,7 +146,7 @@ public:
   void
   run()
   {
-    pcl::OpenNIGrabber interface{device_id_};
+    pcl::OpenNIGrabber interface(device_id_);
 
     std::function<void(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr&)> f =
         [this](const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& cloud) {
@@ -180,19 +182,29 @@ public:
 void
 usage(char** argv)
 {
-  std::cout << "usage: " << argv[0] << " <device_id> <options>\n\n";
+  std::cout << "usage: " << argv[0] << " [-device_id X (default: \"#1\")]\n\n";
 
   openni_wrapper::OpenNIDriver& driver = openni_wrapper::OpenNIDriver::getInstance();
   if (driver.getNumberDevices() > 0) {
     for (unsigned deviceIdx = 0; deviceIdx < driver.getNumberDevices(); ++deviceIdx) {
       // clang-format off
-      std::cout << "Device: " << deviceIdx + 1 << ", vendor: " << driver.getVendorName (deviceIdx) << ", product: " << driver.getProductName (deviceIdx)
-              << ", connected: " << driver.getBus (deviceIdx) << " @ " << driver.getAddress (deviceIdx) << ", serial number: \'" << driver.getSerialNumber (deviceIdx) << "\'" << std::endl;
-      std::cout << "device_id may be #1, #2, ... for the first second etc device in the list or" << std::endl
-           << "                 bus@address for the device connected to a specific usb-bus / address combination (works only in Linux) or" << std::endl
-           << "                 <serial-number> (only in Linux and for devices which provide serial numbers)"  << std::endl;
+      std::cout << "Device: " << deviceIdx + 1 
+                << ", vendor: " << driver.getVendorName (deviceIdx) 
+                << ", product: " << driver.getProductName (deviceIdx)
+                << ", connected: " << driver.getBus (deviceIdx) << " @ " << driver.getAddress (deviceIdx) << ", serial number: \'" << driver.getSerialNumber (deviceIdx) << "\'" 
+                << std::endl;
       // clang-format on
     }
+
+    std::cout << "\ndevice_id may be:" << std::endl
+              << "    #1, #2, ... for the first second etc device in the list or"
+              << std::endl
+
+              << "    bus@address for the device connected to a specific "
+                 "usb-bus/address combination (works only in Linux) or"
+
+              << "    <serial-number> (only in Linux and for devices which provide "
+                 "serial numbers)";
   }
   else
     std::cout << "No devices connected." << std::endl;
@@ -201,18 +213,22 @@ usage(char** argv)
 int
 main(int argc, char** argv)
 {
-  std::string arg;
-  if (argc > 1)
-    arg = std::string(argv[1]);
-
-  if (arg == "--help" || arg == "-h") {
+  /////////////////////////////////////////////////////////////////////
+  if (pcl::console::find_argument(argc, argv, "-h") != -1 ||
+      pcl::console::find_argument(argc, argv, "--help") != -1) {
     usage(argv);
     return 1;
   }
 
-  pcl::OpenNIGrabber grabber("");
+  std::string device_id;
+  if (pcl::console::parse_argument(argc, argv, "-device_id", device_id) == -1 &&
+      argc > 1 && argv[1][0] != '-')
+    device_id = argv[1];
+  /////////////////////////////////////////////////////////////////////
+
+  pcl::OpenNIGrabber grabber(device_id);
   if (grabber.providesCallback<pcl::OpenNIGrabber::sig_cb_openni_point_cloud_rgb>()) {
-    OpenNIIntegralImageNormalEstimation v("");
+    OpenNIIntegralImageNormalEstimation v(device_id);
     v.run();
   }
   else

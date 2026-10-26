@@ -62,7 +62,6 @@ namespace pcl
         {
           public:
             Entry ()
-            : num_transforms_ (0)
             {
               aux::set3 (axis_angle_, 0.0f);
               aux::set3 (translation_, 0.0f);
@@ -77,6 +76,8 @@ namespace pcl
 
             const Entry& operator = (const Entry& src)
             {
+              if (this == &src)
+                return *this;
               num_transforms_ = src.num_transforms_;
               aux::copy3 (src.axis_angle_, this->axis_angle_);
               aux::copy3 (src.translation_, this->translation_);
@@ -134,7 +135,7 @@ namespace pcl
 
           protected:
             float axis_angle_[3], translation_[3];
-            int num_transforms_;
+            int num_transforms_{0};
         };// class Entry
 
       public:
@@ -153,7 +154,7 @@ namespace pcl
         inline const RotationSpaceCell::Entry*
         getEntry (const ModelLibrary::Model* model) const
         {
-          std::map<const ModelLibrary::Model*, Entry>::const_iterator res = model_to_entry_.find (model);
+          auto res = model_to_entry_.find (model);
 
           if ( res != model_to_entry_.end () )
             return (&res->second);
@@ -293,15 +294,13 @@ namespace pcl
     class RotationSpaceCreator
     {
       public:
-        RotationSpaceCreator()
-        : counter_ (0)
-        {}
+        RotationSpaceCreator() = default;
 
         virtual ~RotationSpaceCreator() = default;
 
         RotationSpace* create(const SimpleOctree<RotationSpace, RotationSpaceCreator, float>::Node* leaf)
         {
-          RotationSpace *rot_space = new RotationSpace (discretization_);
+          auto *rot_space = new RotationSpace (discretization_);
           rot_space->setCenter (leaf->getCenter ());
           rotation_spaces_.push_back (rot_space);
 
@@ -331,7 +330,7 @@ namespace pcl
 
       protected:
         float discretization_;
-        int counter_;
+        int counter_{0};
         std::list<RotationSpace*> rotation_spaces_;
     };
 

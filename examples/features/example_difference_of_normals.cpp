@@ -13,6 +13,9 @@
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/search/organized.h> // for OrganizedNeighbor
+#include <pcl/search/kdtree.h>
+#include <pcl/point_types.h>
 
 #include <pcl/features/don.h>
 
@@ -46,8 +49,9 @@ int main (int argc, char *argv[])
   bool approx = false;
   constexpr double decimation = 100;
 
-  if(argc < 2){
+  if(argc < 3){
     std::cerr << "Expected 2 arguments: inputfile outputfile" << std::endl;
+    return 0;
   }
 
   ///The file to read from.
@@ -64,19 +68,6 @@ int main (int argc, char *argv[])
         std::cout << "Loading point cloud...";
         pcl::fromPCLPointCloud2 (blob, *cloud);
         std::cout << "done." << std::endl;
-
-  SearchPtr tree;
-
-  if (cloud->isOrganized ())
-  {
-    tree.reset (new pcl::search::OrganizedNeighbor<PointT> ());
-  }
-  else
-  {
-      tree.reset (new pcl::search::KdTree<PointT> (false));
-  }
-
-  tree->setInputCloud (cloud);
 
   PointCloud<PointT>::Ptr small_cloud_downsampled;
   PointCloud<PointT>::Ptr large_cloud_downsampled;
@@ -99,7 +90,7 @@ int main (int argc, char *argv[])
 
     // Create downsampled point cloud for DoN NN search with large scale
     large_cloud_downsampled = PointCloud<PointT>::Ptr(new pcl::PointCloud<PointT>);
-    const float largedownsample = float (scale2/decimation);
+    constexpr float largedownsample = static_cast<float>(scale2/decimation);
     sor.setLeafSize (largedownsample, largedownsample, largedownsample);
     sor.filter (*large_cloud_downsampled);
     std::cout << "Using leaf size of " << largedownsample << " for large scale, " << large_cloud_downsampled->size() << " points" << std::endl;
@@ -108,7 +99,6 @@ int main (int argc, char *argv[])
   // Compute normals using both small and large scales at each point
   pcl::NormalEstimationOMP<PointT, PointNT> ne;
   ne.setInputCloud (cloud);
-        ne.setSearchMethod (tree);
 
   /**
    * NOTE: setting viewpoint is very important, so that we can ensure
@@ -209,10 +199,10 @@ int main (int argc, char *argv[])
   ec.extract (cluster_indices);
 
   int j = 0;
-  for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it, j++)
+  for (const auto& cluster : cluster_indices)
   {
     pcl::PointCloud<PointOutT>::Ptr cloud_cluster_don (new pcl::PointCloud<PointOutT>);
-    for (const auto &index : it->indices){
+    for (const auto &index : cluster.indices){
       cloud_cluster_don->points.push_back ((*doncloud)[index]);
     }
 
@@ -224,6 +214,7 @@ int main (int argc, char *argv[])
     std::stringstream ss;
     ss << outfile.substr(0,outfile.length()-4) << "_threshold_"<< threshold << "_cluster_" << j << ".pcd";
     writer.write<PointOutT> (ss.str (), *cloud_cluster_don, false);
+    ++j;
   }
 }
 

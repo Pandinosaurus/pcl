@@ -44,13 +44,14 @@
 #include <string>
 
 // Boost
+#include <boost/random/mersenne_twister.hpp> // for boost::mt19937
 #include <boost/uuid/random_generator.hpp>
 
-#include <pcl/common/utils.h> // pcl::utils::ignore
-#include <pcl/outofcore/boost.h>
 #include <pcl/outofcore/octree_abstract_node_container.h>
+#include <pcl/common/utils.h>    // pcl::utils::ignore
 #include <pcl/io/pcd_io.h>
 #include <pcl/PCLPointCloud2.h>
+#include <pcl/point_types.h>     // for pcl::PointXYZ
 
 //allows operation on POSIX
 #if !defined _WIN32
@@ -211,7 +212,7 @@ namespace pcl
           writebuff_.clear ();
           //remove the binary data in the directory
           PCL_DEBUG ("[Octree Disk Container] Removing the point data from disk, in file %s\n", disk_storage_filename_.c_str ());
-          boost::filesystem::remove (boost::filesystem::path (disk_storage_filename_.c_str ()));
+          boost::filesystem::remove (static_cast<boost::filesystem::path> (disk_storage_filename_.c_str ()));
           //reset the size-of-file counter
           filelen_ = 0;
         }

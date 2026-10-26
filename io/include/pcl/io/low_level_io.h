@@ -62,7 +62,7 @@ using ssize_t = SSIZE_T;
 # include <sys/mman.h>
 # include <sys/types.h>
 # include <sys/stat.h>
-# include <sys/fcntl.h>
+# include <fcntl.h>
 # include <cerrno>
 #endif
 #include <cstddef>
@@ -179,6 +179,12 @@ namespace pcl
       // fallocate returns -1 on error and sets errno
       // EINVAL should indicate an unsupported filesystem.
       // All other errors are passed up.
+      if (errno != EINVAL)
+        return -1;
+#  elif defined(__OpenBSD__)
+      // OpenBSD has neither posix_fallocate nor fallocate
+      if (::ftruncate(fd, length) == 0)
+        return 0;
       if (errno != EINVAL)
         return -1;
 #  else
